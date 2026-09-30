@@ -1,0 +1,42 @@
+/* Design tokens: hex values from docs/DESIGN-apple.md. danger/danger-bg added because the design doc has no error state. */
+:root {
+  --c-primary: #0066cc;
+  --c-primary-focus: #0071e3;
+  --c-primary-on-dark: #2997ff;
+  --c-ink: #1d1d1f;
+  --c-on-dark: #ffffff;
+  --c-body-muted: #cccccc;
+  --c-ink-muted-80: #333333;
+  --c-ink-muted-48: #7a7a7a;
+  --c-divider-soft: #f0f0f0;
+  --c-hairline: #e0e0e0;
+  --c-canvas: #ffffff;
+  --c-canvas-parchment: #f5f5f7;
+  --c-surface-pearl: #fafafc;
+  --c-surface-tile-1: #272729;
+  --c-surface-black: #000000;
+  --c-on-primary: #ffffff;
+  --c-frost: rgba(245, 245, 247, 0.8);
+  --c-ring: rgba(0, 0, 0, 0.08);
+  --c-danger: #c4001a;
+  --c-danger-bg: #fff0f1;
+
+  --r-xs: 5px;
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 18px;
+  --r-pill: 9999px;
+
+  --s-xxs: 4px;
+  --s-xs: 8px;
+  --s-sm: 12px;
+  --s-md: 17px;
+  --s-lg: 24px;
+  --s-xl: 32px;
+  --s-xxl: 48px;
+  --s-section: 80px;
+
+  --f-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --f-text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --f-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
