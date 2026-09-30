@@ -20,6 +20,7 @@ export default function Settings() {
   const [created, setCreated] = useState(null);
   const [copied, setCopied] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
+  const [pw, setPw] = useState({ current: '', next: '', errors: {} });
 
   const cur = draft || { rate: String(s.rate), serviceFee: String(s.serviceFee), shipping: String(s.shipping), tax: String(s.tax) };
   const clean = DEF.every(([k]) => String(s[k]) === String(cur[k]));
@@ -34,6 +35,12 @@ export default function Settings() {
     const done = () => setCopied(true);
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(created.key).then(done, done); else done();
   };
+  const changePassword = async e => {
+    e.preventDefault();
+    const r = await api.changePassword(pw.current, pw.next);
+    if (r.ok) setPw({ current: '', next: '', errors: {} });
+    else setPw(x => ({ ...x, errors: r.errors || { next: r.error } }));
+  };
   const submit = async e => {
     e.preventDefault();
     const r = await api.saveSettings(cur);
@@ -45,7 +52,7 @@ export default function Settings() {
       <article aria-labelledby="set-acc-h" className="card">
         <div className="stack-xxs">
           <h2 id="set-acc-h" className="h-tile">Tài khoản &amp; đăng nhập</h2>
-          <p className="caption">Đăng nhập bằng Google. Chỉ email chủ shop được cấp phiên; tài khoản khác bị từ chối ở máy chủ.</p>
+          <p className="caption">Đăng nhập bằng email và mật khẩu. Chỉ email chủ shop được cấp phiên; sai mật khẩu 5 lần thì bị khóa 15 phút.</p>
         </div>
         <dl className="dl-rows dl-rows--wrap">
           <div><dt>Đang đăng nhập</dt><dd>{u.email || '—'}</dd></div>
@@ -53,6 +60,20 @@ export default function Settings() {
           <div><dt>Vai trò</dt><dd>owner</dd></div>
           <div><dt>Đăng nhập lúc</dt><dd>{u.signedInAt ? new Date(u.signedInAt).toLocaleString('vi-VN') : '—'}</dd></div>
         </dl>
+        <form onSubmit={changePassword} noValidate aria-label="Đổi mật khẩu" className="form-grid" style={{ alignItems: 'start' }}>
+          <Field id="pw-current" label="Mật khẩu hiện tại" error={pw.errors.current}>
+            <input {...invalidProps('pw-current', pw.errors.current)} type="password" autoComplete="current-password" className="input"
+              value={pw.current} onChange={e => setPw(x => ({ ...x, current: e.target.value, errors: {} }))} />
+          </Field>
+          <Field id="pw-next" label="Mật khẩu mới (ít nhất 10 ký tự)" error={pw.errors.next}>
+            <input {...invalidProps('pw-next', pw.errors.next)} type="password" autoComplete="new-password" className="input"
+              value={pw.next} onChange={e => setPw(x => ({ ...x, next: e.target.value, errors: {} }))} />
+          </Field>
+          <div className="field">
+            <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1.43, visibility: 'hidden' }}>.</span>
+            <button type="submit" className="btn-primary" disabled={!pw.next}>Đổi mật khẩu</button>
+          </div>
+        </form>
         <div>
           <button type="button" className="btn-secondary" onClick={api.signOut}>Đăng xuất</button>
         </div>
