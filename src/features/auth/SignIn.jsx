@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../store/app-store';
 
-// Accounts offered by the dev-login chooser (only when the server has no Google client configured).
+// Accounts offered by the dev-login chooser (development only, when no password has been set).
 const DEV_ACCOUNTS = [
   { name: 'Chủ shop', email: 'chushop.rakuma@gmail.com' },
   { name: 'Người phụ nhập đơn', email: 'phuban.rakuma@gmail.com' },
@@ -9,18 +9,29 @@ const DEV_ACCOUNTS = [
 
 const readAuthError = () => new URLSearchParams(location.search).get('auth_error') || '';
 
-// Google OAuth 2.0: the server verifies the Google account and only issues a session to the owner email (GD-01, E1).
+// Owner-only sign-in: email + password (server checks bcrypt hash, locks out after repeated failures),
+// plus Google OAuth when the server has it configured (GD-01, E1).
 export default function SignIn() {
   const { api } = useApp();
   const [cfg, setCfg] = useState(null);
   const [step, setStep] = useState('idle');
   const [error, setError] = useState(readAuthError);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const emailRef = useRef(null);
   const firstAcc = useRef(null);
 
   useEffect(() => {
-    api.authConfig().then(r => setCfg(r.ok ? r.data : { google: false, devLogin: false }));
+    api.authConfig().then(r => setCfg(r.ok ? r.data : { google: false, password: true, devLogin: false }));
     if (readAuthError()) history.replaceState(null, '', location.pathname + location.hash);
   }, [api]);
+
+  const showPassword = cfg && (cfg.password || !cfg.devLogin);
+  const showDevChooser = cfg && cfg.devLogin && !cfg.password;
+
+  useEffect(() => {
+    if (showPassword) requestAnimationFrame(() => emailRef.current && emailRef.current.focus());
+  }, [showPassword]);
 
   useEffect(() => {
     if (step !== 'choose') return;
@@ -30,17 +41,24 @@ export default function SignIn() {
     return () => window.removeEventListener('keydown', onKey);
   }, [step]);
 
-  const start = () => {
+  const submit = async e => {
+    e.preventDefault();
     setError('');
-    if (cfg?.google) { setStep('loading'); location.href = api.googleLoginUrl; return; }
-    if (cfg?.devLogin) { setStep('choose'); return; }
-    setError('Máy chủ chưa cấu hình đăng nhập Google.');
+    setStep('loading');
+    const res = await api.passwordLogin(email, password);
+    if (!res.ok) {
+      setStep('idle');
+      setError(res.error);
+      setPassword('');
+    }
   };
+  const google = () => { setStep('loading'); location.href = api.googleLoginUrl; };
   const pick = async acc => {
     setStep('loading');
     const res = await api.devLogin(acc);
     if (!res.ok) { setStep('idle'); setError(res.error); }
   };
+  const busy = step === 'loading';
 
   return (
     <main id="main" tabIndex={-1} className="signin-page">
@@ -48,12 +66,39 @@ export default function SignIn() {
         <div className="stack-xxs" style={{ gap: 'var(--s-xs)' }}>
           <p className="signin-eyebrow">Rakuma · Sổ kho</p>
           <h1 className="h-display">Đăng nhập</h1>
-          <p className="signin-lead">Quản lý nhập, bán, tồn kho và lãi lỗ hàng Rakuma/Mercari. Chỉ tài khoản Google của chủ shop được vào hệ thống.</p>
+          <p className="signin-lead">Quản lý nhập, bán, tồn kho và lãi lỗ hàng Rakuma/Mercari. Chỉ tài khoản của chủ shop được vào hệ thống.</p>
         </div>
-        {step === 'idle' && (
-          <button type="button" className="btn-primary signin-google" onClick={start} disabled={!cfg}>Tiếp tục với Google</button>
+
+        {showPassword && (
+          <form onSubmit={submit} noValidate aria-label="Đăng nhập bằng email và mật khẩu" className="stack-md">
+            <div className="field">
+              <label htmlFor="login-email" className="label">Email</label>
+              <input
+                id="login-email" ref={emailRef} type="email" autoComplete="username" inputMode="email" className="input"
+                value={email} onChange={e => setEmail(e.target.value)} aria-invalid={error ? 'true' : 'false'} aria-describedby="login-err"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="login-password" className="label">Mật khẩu</label>
+              <input
+                id="login-password" type="password" autoComplete="current-password" className="input"
+                value={password} onChange={e => setPassword(e.target.value)} aria-invalid={error ? 'true' : 'false'} aria-describedby="login-err"
+              />
+            </div>
+            <button type="submit" className="btn-primary signin-google" disabled={busy || !email.trim() || !password}>
+              {busy ? 'Đang đăng nhập…' : 'Đăng nhập'}
+            </button>
+          </form>
         )}
-        {step === 'choose' && (
+
+        {cfg?.google && (
+          <button type="button" className="btn-secondary" style={{ width: '100%', minHeight: 48 }} onClick={google} disabled={busy}>Tiếp tục với Google</button>
+        )}
+
+        {showDevChooser && step !== 'choose' && (
+          <button type="button" className="btn-primary signin-google" onClick={() => { setError(''); setStep('choose'); }} disabled={busy}>Tiếp tục với Google</button>
+        )}
+        {showDevChooser && step === 'choose' && (
           <div role="group" aria-labelledby="auth-choose-h" className="stack-md" style={{ gap: 'var(--s-sm)' }}>
             <h2 id="auth-choose-h" style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Chọn tài khoản Google</h2>
             <ul className="signin-accounts">
@@ -69,10 +114,10 @@ export default function SignIn() {
             <button type="button" className="btn-link btn-link--tight" style={{ alignSelf: 'flex-start' }} onClick={() => setStep('idle')}>Hủy</button>
           </div>
         )}
-        {step === 'loading' && <p role="status" style={{ margin: 0 }}>Đang xác thực với Google…</p>}
-        {error && <p role="alert" className="alert-inline">{error}</p>}
-        {cfg && !cfg.google && cfg.devLogin && (
-          <p className="signin-fineprint">Chế độ phát triển: chưa cấu hình Google OAuth (GOOGLE_CLIENT_ID), hộp chọn tài khoản đang được mô phỏng. Máy chủ vẫn chỉ cấp phiên cho email chủ shop.</p>
+
+        {error && <p id="login-err" role="alert" className="alert-inline">{error}</p>}
+        {showDevChooser && (
+          <p className="signin-fineprint">Chế độ phát triển: chưa đặt mật khẩu cho chủ shop, hộp chọn tài khoản đang được mô phỏng.</p>
         )}
       </div>
     </main>

@@ -33,6 +33,15 @@ function buildApi(reload, notify, setSignedOut) {
       if (res.ok) await reload();
       return res;
     },
+    passwordLogin: async (email, password) => {
+      const res = await http.post('/auth/login', { email, password });
+      if (res.ok) await reload();
+      return res;
+    },
+    changePassword: async (current, next) => {
+      const r = await result(await http.put('/auth/password', { current, next }), 'Đã đổi mật khẩu.');
+      return r;
+    },
     googleLoginUrl: '/api/v1/auth/google/login',
     signOut: async () => { await http.post('/auth/logout'); setSignedOut(); },
 
