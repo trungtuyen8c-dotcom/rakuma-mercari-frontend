@@ -11,6 +11,7 @@ const blank = keep => ({ periodId: keep ? keep.periodId : '', productId: '', sou
 export default function Purchases({ composerOpen, composerSeq, closeComposer }) {
   const { store, api } = useApp();
   const [form, setForm] = useState(blank);
+  const [editing, setEditing] = useState(null); // the row being edited, or null when adding
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
   const [filter, setFilter] = useState({ period: '', source: 'all', product: 'all', status: 'all', q: '' });
@@ -23,8 +24,9 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   };
   const on = k => e => set(k, k === 'merged' ? e.target.checked : e.target.value);
   const save = async force => {
-    const res = await api.addPurchase(form, force);
+    const res = editing ? await api.updatePurchase(editing.id, form, force) : await api.addPurchase(form, force);
     if (res.ok) {
+      if (editing) { setEditing(null); setForm(blank()); setErrors({}); setWarnings([]); return; }
       setForm(f => blank(f));
       setErrors({});
       setWarnings([]);
@@ -34,7 +36,20 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
       setWarnings(res.warnings || []);
     }
   };
-  const cancel = () => { setForm(blank()); setErrors({}); setWarnings([]); closeComposer(); };
+  const cancel = () => { setForm(blank()); setEditing(null); setErrors({}); setWarnings([]); closeComposer(); };
+  // Any row is editable, closed months too; the totals of later months are recomputed from the rows
+  const startEdit = r => {
+    if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
+    setForm({ periodId: r.periodId, productId: r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
+      discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note });
+    setEditing(r); setErrors({}); setWarnings([]);
+    window.scrollTo(0, 0);
+  };
+  const remove = r => {
+    if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Xóa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
+    api.deletePurchase(r.id);
+  };
+  const formOpen = composerOpen || !!editing;
 
   const allPeriods = filter.period === 'all';
   const period = store.periods.find(p => p.id === (filter.period || store.openPeriod.id)) || store.openPeriod;
@@ -57,14 +72,14 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 
   return (
     <section aria-label="Nhập hàng" className="page">
-      {composerOpen && (
+      {formOpen && (
         <form onSubmit={e => { e.preventDefault(); save(false); }} noValidate aria-labelledby="pur-form-h" className="card card--lg">
           <div className="form-head">
-            <h2 id="pur-form-h" className="h-tile">Thêm dòng nhập</h2>
-            <p className="caption">Ghi vào kỳ {targetPeriod(store, form.periodId, form.date).label}. Tổng tiền = (Giá nhập − Giảm giá) × Số lượng.</p>
+            <h2 id="pur-form-h" className="h-tile">{editing ? `Sửa dòng ${editing.stt} · kỳ ${editing.periodLabel}` : 'Thêm dòng nhập'}</h2>
+            <p className="caption">{editing ? `Dòng thuộc kỳ ${editing.periodLabel}` : `Ghi vào kỳ ${targetPeriod(store, form.periodId, form.date).label}`}. Tổng tiền = (Giá nhập − Giảm giá) × Số lượng.</p>
           </div>
           <div className="form-grid">
-            <PeriodField id="pur-period" store={store} value={form.periodId} onChange={on('periodId')} error={errors.periodId} />
+            {!editing && <PeriodField id="pur-period" store={store} value={form.periodId} onChange={on('periodId')} error={errors.periodId} />}
             <Field id="pur-product" label="Sản phẩm *" error={errors.productId}>
               <select {...invalidProps('pur-product', errors.productId)} ref={firstRef} className="input" value={form.productId} onChange={on('productId')}>
                 <option value="">Chọn sản phẩm</option>
@@ -110,7 +125,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <p aria-live="polite" className="form-total">Tổng tiền: <strong>{valid ? yen((price - disc) * qty) : '—'}</strong></p>
             <div className="row-wrap">
               <button type="button" className="btn-secondary" onClick={cancel}>Đóng</button>
-              <button type="submit" className="btn-primary" disabled={!form.productId || form.price === '' || form.qty === ''}>Lưu dòng nhập</button>
+              <button type="submit" className="btn-primary" disabled={!form.productId || form.price === '' || form.qty === ''}>{editing ? 'Lưu thay đổi' : 'Lưu dòng nhập'}</button>
             </div>
           </div>
         </form>
@@ -188,13 +203,14 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
                     <span className="b">{r.dupTracking ? ' · trùng' : r.merged ? ' · gộp' : ''}</span>
                   </td>
                   <td className="c">
-                    <input type="checkbox" className="checkbox" checked={r.checked} disabled={r.locked} onChange={() => api.togglePurchase(r.id, 'checked', !r.checked)} aria-label={`Đã kiểm hàng dòng ${r.stt} (${r.productName})`} />
+                    <input type="checkbox" className="checkbox" checked={r.checked} onChange={() => api.togglePurchase(r.id, 'checked', !r.checked)} aria-label={`Đã kiểm hàng dòng ${r.stt} (${r.productName})`} />
                   </td>
                   <td className="c">
-                    <input type="checkbox" className="checkbox" checked={r.reviewed} disabled={r.locked} onChange={() => api.togglePurchase(r.id, 'reviewed', !r.reviewed)} aria-label={`Đã đánh giá người bán dòng ${r.stt} (${r.productName})`} />
+                    <input type="checkbox" className="checkbox" checked={r.reviewed} onChange={() => api.togglePurchase(r.id, 'reviewed', !r.reviewed)} aria-label={`Đã đánh giá người bán dòng ${r.stt} (${r.productName})`} />
                   </td>
                   <td className="act">
-                    <button type="button" className="btn-link btn-link--danger" disabled={r.locked} onClick={() => api.deletePurchase(r.id)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
+                    <button type="button" className="btn-link" onClick={() => startEdit(r)} aria-label={`Sửa dòng ${r.stt} (${r.productName})`}>Sửa</button>
+                    <button type="button" className="btn-link btn-link--danger" onClick={() => remove(r)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
                   </td>
                 </tr>
               ))}

@@ -12,6 +12,7 @@ const noFilter = { period: '', product: 'all', date: '', customer: '' };
 export default function Sales({ composerOpen, composerSeq, closeComposer }) {
   const { store, api } = useApp();
   const [form, setForm] = useState(blank);
+  const [editing, setEditing] = useState(null);
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
   const [filter, setFilter] = useState(noFilter);
@@ -24,8 +25,9 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
     setErrors(x => ({ ...x, [k]: undefined }));
   };
   const save = async force => {
-    const res = await api.addSale(form, force);
+    const res = editing ? await api.updateSale(editing.id, form, force) : await api.addSale(form, force);
     if (res.ok) {
+      if (editing) { setEditing(null); setForm(blank()); setErrors({}); setWarnings([]); return; }
       setForm(f => blank(f));
       setErrors({});
       setWarnings([]);
@@ -35,7 +37,19 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
       setWarnings(res.warnings || []);
     }
   };
-  const cancel = () => { setForm(blank()); setErrors({}); setWarnings([]); closeComposer(); };
+  const cancel = () => { setForm(blank()); setEditing(null); setErrors({}); setWarnings([]); closeComposer(); };
+  const startEdit = r => {
+    if (r.locked && !window.confirm(`Đơn này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
+    setForm({ periodId: r.periodId, productId: r.productId, date: r.date, qty: String(r.qty), price: String(r.price),
+      ship: r.ship ? String(r.ship) : '', customer: r.customer, note: r.note });
+    setEditing(r); setErrors({}); setWarnings([]);
+    window.scrollTo(0, 0);
+  };
+  const remove = r => {
+    if (r.locked && !window.confirm(`Đơn này thuộc kỳ ${r.periodLabel} đã chốt. Xóa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
+    api.deleteSale(r.id);
+  };
+  const formOpen = composerOpen || !!editing;
 
   const period = store.periods.find(p => p.id === (filter.period || store.openPeriod.id)) || store.openPeriod;
   const inPeriod = store.sales.filter(r => r.periodId === period.id);
@@ -52,14 +66,14 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
 
   return (
     <section aria-label="Bán hàng" className="page">
-      {composerOpen && (
+      {formOpen && (
         <form onSubmit={e => { e.preventDefault(); save(false); }} noValidate aria-labelledby="sale-form-h" className="card card--lg">
           <div className="form-head">
-            <h2 id="sale-form-h" className="h-tile">Thêm đơn bán</h2>
-            <p className="caption">Ghi vào kỳ {targetPeriod(store, form.periodId, form.date).label}. Tổng tiền = Số lượng × Đơn giá − Phí ship.</p>
+            <h2 id="sale-form-h" className="h-tile">{editing ? `Sửa đơn bán ${editing.stt} · kỳ ${editing.periodLabel}` : 'Thêm đơn bán'}</h2>
+            <p className="caption">{editing ? `Đơn thuộc kỳ ${editing.periodLabel}` : `Ghi vào kỳ ${targetPeriod(store, form.periodId, form.date).label}`}. Tổng tiền = Số lượng × Đơn giá − Phí ship.</p>
           </div>
           <div className="form-grid">
-            <PeriodField id="sale-period" store={store} value={form.periodId} onChange={on('periodId')} error={errors.periodId} />
+            {!editing && <PeriodField id="sale-period" store={store} value={form.periodId} onChange={on('periodId')} error={errors.periodId} />}
             <Field
               id="sale-product" label="Sản phẩm *" error={errors.productId}
               hint={inv ? `Tồn hiện tại: ${inv.current} cái` : 'Chọn sản phẩm để xem tồn hiện tại.'}
@@ -94,7 +108,7 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
             <p aria-live="polite" className="form-total">Tổng tiền: <strong>{valid ? yen(qty * price - ship) : '—'}</strong></p>
             <div className="row-wrap">
               <button type="button" className="btn-secondary" onClick={cancel}>Đóng</button>
-              <button type="submit" className="btn-primary" disabled={!form.productId || form.qty === '' || form.price === ''}>Lưu đơn bán</button>
+              <button type="submit" className="btn-primary" disabled={!form.productId || form.qty === '' || form.price === ''}>{editing ? 'Lưu thay đổi' : 'Lưu đơn bán'}</button>
             </div>
           </div>
         </form>
@@ -149,7 +163,8 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
                   <td>{r.customer || '—'}</td>
                   <td className="dim">{r.note || '—'}</td>
                   <td className="act">
-                    <button type="button" className="btn-link btn-link--danger" disabled={r.locked} onClick={() => api.deleteSale(r.id)} aria-label={`Xóa đơn bán ${r.stt} (${r.productName})`}>Xóa</button>
+                    <button type="button" className="btn-link" onClick={() => startEdit(r)} aria-label={`Sửa đơn bán ${r.stt} (${r.productName})`}>Sửa</button>
+                    <button type="button" className="btn-link btn-link--danger" onClick={() => remove(r)} aria-label={`Xóa đơn bán ${r.stt} (${r.productName})`}>Xóa</button>
                   </td>
                 </tr>
               ))}

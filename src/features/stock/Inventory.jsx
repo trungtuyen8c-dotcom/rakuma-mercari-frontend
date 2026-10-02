@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../store/app-store';
 import { qtyText, periodStatusText } from '../../utils/format';
 
-const COLS = [['stt', 'STT', 'right'], ['name', 'Tên sản phẩm', 'left'], ['opening', 'Tồn đầu kỳ', 'right'], ['incoming', 'Nhập thêm', 'right'], ['sold', 'Đã bán', 'right'], ['current', 'SL hiện tại', 'right']];
+const COLS = [['stt', 'STT', 'right'], ['name', 'Tên sản phẩm', 'left'], ['opening', 'Tồn đầu kỳ', 'right'], ['incoming', 'Nhập thêm', 'right'], ['sold', 'Đã bán', 'right'], ['adjust', 'Điều chỉnh', 'right'], ['current', 'SL hiện tại', 'right']];
 
 export default function Inventory() {
   const { store, api } = useApp();
@@ -14,9 +14,6 @@ export default function Inventory() {
   const [pid, setPid] = useState('');
 
   const stats = store.statsFor(pid || store.openPeriod.id), closed = stats.period.status === 'CLOSED';
-  // Only the oldest open period stores its opening stock; a later open month derives it from the month before
-  const derived = !closed && stats.period.id !== store.openPeriods[0].id;
-  const locked = closed || derived;
   const needle = q.trim().toLowerCase();
   const list = stats.inventory
     .filter(i => (!needle || i.name.toLowerCase().includes(needle)) && (!onlyNeg || i.current < 0))
@@ -30,7 +27,8 @@ export default function Inventory() {
   const commit = async (id, original) => {
     const d = drafts[id];
     if (d === undefined || String(d) === String(original)) return clearDraft(id);
-    const res = await api.setOpening(id, d);
+    if (closed && !window.confirm(`Tháng ${stats.period.label} đã chốt. Sửa tồn sẽ làm thay đổi tồn đầu kỳ của các tháng sau. Tiếp tục?`)) return clearDraft(id);
+    const res = await api.setStock(stats.period.id, id, d);
     if (res.ok) clearDraft(id); else setErr(res.error);
   };
 
@@ -55,11 +53,7 @@ export default function Inventory() {
         <p className="caption">Kỳ {stats.period.label} · Tổng tồn <strong>{qtyText(stats.totals.stockTotal)} món</strong></p>
       </div>
       <p className="caption">
-        {derived
-          ? `Tồn đầu kỳ ${stats.period.label} lấy theo SL hiện tại của kỳ ${store.openPeriods[0].label} (chưa chốt), nên không sửa ở đây.`
-          : closed
-          ? `Tháng ${stats.period.label} đã chốt: số liệu chỉ xem, không sửa được tồn đầu kỳ.`
-          : 'SL hiện tại = Tồn đầu kỳ + Nhập thêm − Đã bán. Sửa tồn đầu kỳ khi kiểm kê lệch rồi nhấn Enter hoặc rời ô để lưu.'}
+        SL hiện tại = Tồn đầu kỳ + Nhập thêm − Đã bán + Điều chỉnh. Kiểm kê thấy lệch thì sửa thẳng ô SL hiện tại rồi nhấn Enter: phần chênh ghi vào cột Điều chỉnh, các tháng sau tự tính lại.
       </p>
       <div role="region" aria-label="Bảng tồn kho" tabIndex={0} className="table-wrap">
         <table className="table table--hover table--compact table--nowrap-head" style={{ minWidth: 680 }}>
@@ -80,27 +74,28 @@ export default function Inventory() {
           <tbody>
             {list.map(i => {
               const neg = i.current < 0, draft = drafts[i.productId];
-              const bad = draft !== undefined && !(draft !== '' && Number.isInteger(Number(draft)) && Number(draft) >= 0);
+              const bad = draft !== undefined && !(draft !== '' && Number.isInteger(Number(draft)));
               return (
                 <tr key={i.productId} className={neg ? 'row-neg' : undefined}>
                   <td className="r dim">{i.stt}</td>
                   <td className="b">{i.name}{!i.active && <span className="dim" style={{ fontWeight: 400 }}> (ẩn)</span>}</td>
-                  <td className="r" style={{ padding: '6px 12px' }}>
-                    <input
-                      type="number" inputMode="numeric" min="0" step="1" className="cell-input"
-                      value={draft !== undefined ? draft : String(i.opening)}
-                      onChange={e => { const v = e.target.value; setDrafts(d => ({ ...d, [i.productId]: v })); }}
-                      onBlur={() => commit(i.productId, i.opening)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') { e.preventDefault(); commit(i.productId, i.opening); }
-                        if (e.key === 'Escape') clearDraft(i.productId);
-                      }}
-                      disabled={locked} aria-label={`Tồn đầu kỳ của ${i.name}`} aria-invalid={bad ? 'true' : 'false'}
-                    />
-                  </td>
+                  <td className="r">{i.opening}</td>
                   <td className="r">{i.incoming}</td>
                   <td className="r">{i.sold}</td>
-                  <td className={'r b' + (neg ? ' neg' : '')}>{neg ? `${i.current} (âm)` : String(i.current)}</td>
+                  <td className="r dim">{i.adjust ? (i.adjust > 0 ? `+${i.adjust}` : i.adjust) : '—'}</td>
+                  <td className={'r b' + (neg ? ' neg' : '')} style={{ padding: '6px 12px' }}>
+                    <input
+                      type="number" inputMode="numeric" step="1" className={'cell-input' + (neg ? ' neg' : '')}
+                      value={draft !== undefined ? draft : String(i.current)}
+                      onChange={e => { const v = e.target.value; setDrafts(d => ({ ...d, [i.productId]: v })); }}
+                      onBlur={() => commit(i.productId, i.current)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); commit(i.productId, i.current); }
+                        if (e.key === 'Escape') clearDraft(i.productId);
+                      }}
+                      aria-label={`SL hiện tại của ${i.name}`} aria-invalid={bad ? 'true' : 'false'}
+                    />
+                  </td>
                 </tr>
               );
             })}

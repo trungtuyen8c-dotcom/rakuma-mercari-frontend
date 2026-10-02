@@ -7,16 +7,18 @@ function periodStats(s, pid, purchases, sales) {
   let periodCost = 0, periodRevenue = 0, salesCount = 0;
   purchases.forEach(r => { if (r.periodId === pid) { inc[r.productId] = (inc[r.productId] || 0) + r.qty; periodCost += r.total; } });
   sales.forEach(r => { if (r.periodId === pid) { out[r.productId] = (out[r.productId] || 0) + r.qty; periodRevenue += r.total; salesCount++; } });
-  const openings = s.openings[pid] || {};
+  // Openings come from the server already chained from the previous period; adjustments are the owner's corrections
+  const openings = s.openings[pid] || {}, adjusts = (s.stockAdjusts || {})[pid] || {};
   const inventory = s.products.map((pr, i) => {
-    const opening = openings[pr.id] || 0, incoming = inc[pr.id] || 0, sold = out[pr.id] || 0;
-    return { productId: pr.id, stt: i + 1, name: pr.name, active: pr.active, opening, incoming, sold, current: opening + incoming - sold }; // BR-07, BR-08
+    const opening = openings[pr.id] || 0, incoming = inc[pr.id] || 0, sold = out[pr.id] || 0, adjust = adjusts[pr.id] || 0;
+    return { productId: pr.id, stt: i + 1, name: pr.name, active: pr.active, opening, incoming, sold, adjust, current: opening + incoming - sold + adjust }; // BR-07, BR-08
   });
+  const adjustCost = p.adjustCost || 0, adjustRevenue = p.adjustRevenue || 0;
   const totals = {
     prevCost: p.openingCost, prevRevenue: p.openingRevenue, prevProfit: p.openingRevenue - p.openingCost, // BR-13
-    periodCost, periodRevenue, periodProfit: periodRevenue - periodCost,
-    totalCost: p.openingCost + periodCost, // BR-10
-    totalRevenue: p.openingRevenue + periodRevenue, // BR-11
+    periodCost, periodRevenue, periodProfit: periodRevenue - periodCost, adjustCost, adjustRevenue,
+    totalCost: p.openingCost + periodCost + adjustCost, // BR-10
+    totalRevenue: p.openingRevenue + periodRevenue + adjustRevenue, // BR-11
     stockTotal: inventory.reduce((a, b) => a + b.current, 0),
     salesCount,
   };

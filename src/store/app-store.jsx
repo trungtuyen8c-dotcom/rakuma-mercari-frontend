@@ -46,10 +46,12 @@ function buildApi(reload, notify, setSignedOut) {
     signOut: async () => { await http.post('/auth/logout'); setSignedOut(); },
 
     addPurchase: async (d, f) => result(await http.post('/purchases' + force(f), d), r => `Đã thêm dòng nhập “${r.productName}”: ${yen(r.total)}.`),
+    updatePurchase: async (id, d, f) => result(await http.put('/purchases/' + id + force(f), d), r => `Đã sửa dòng nhập “${r.productName}”: ${yen(r.total)}.`),
     deletePurchase: async id => act(await http.del('/purchases/' + id), 'Đã xóa dòng nhập.'),
     togglePurchase: async (id, field, value) => act(await http.patch('/purchases/' + id, { [field]: value })),
 
     addSale: async (d, f) => result(await http.post('/sales' + force(f), d), r => `Đã ghi bán ${r.qty} “${r.productName}”: ${yen(r.total)}.`),
+    updateSale: async (id, d, f) => result(await http.put('/sales/' + id + force(f), d), r => `Đã sửa đơn bán “${r.productName}”: ${yen(r.total)}.`),
     deleteSale: async id => act(await http.del('/sales/' + id), 'Đã xóa đơn bán.'),
 
     addProduct: async name => {
@@ -63,6 +65,11 @@ function buildApi(reload, notify, setSignedOut) {
     toggleProductActive: async (id, active) => act(await http.patch('/products/' + id, { active })),
     deleteProduct: async id => act(await http.del('/products/' + id), 'Đã xóa sản phẩm.'),
 
+    setStock: async (periodId, pid, value) => {
+      const r = await result(await http.put(`/stock/${pid}/current?period_id=${periodId}`, { qty: value }));
+      return r.ok ? r : { ok: false, error: r.errors?.qty || r.error };
+    },
+    setPeriodTotals: async (periodId, d) => result(await http.put(`/periods/${periodId}/totals`, d), 'Đã sửa số tổng. Lợi nhuận và các kỳ sau đã tính lại.'),
     setOpening: async (pid, value) => {
       const r = await result(await http.put(`/stock/${pid}/opening`, { qty: value }));
       return r.ok ? r : { ok: false, error: r.errors?.qty || r.error };
