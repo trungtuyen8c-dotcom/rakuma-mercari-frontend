@@ -5,6 +5,7 @@ import { yen, fmtDate, qtyText } from '../../utils/format';
 export default function Periods() {
   const { store, api } = useApp();
   const [confirming, setConfirming] = useState(false);
+  const [cutStart, setCutStart] = useState('');
   const confirmRef = useRef(null);
   // Closing always applies to the oldest open period; its successor may already be open
   const o = store.openPeriods[0], st0 = store.statsFor(o.id), t = st0.totals, neg = st0.negatives;
@@ -64,9 +65,14 @@ export default function Periods() {
         {canOpenNext ? (
           <>
             <p className="caption">Dùng khi sang tháng mới mà kỳ {o.label} còn đơn chưa xong (chưa nhận hàng, chưa đánh giá). Hai kỳ cùng mở: giao dịch tự vào kỳ theo ngày. Vốn, doanh thu và tồn đầu kỳ {store.nextLabel} tạm tính theo kỳ {o.label} cho tới khi bạn chốt kỳ {o.label}.</p>
-            <div className="row-wrap">
-              <button type="button" className="btn-secondary" onClick={() => api.openNextPeriod()}>Mở kỳ {store.nextLabel}</button>
+            <div className="row-wrap" style={{ alignItems: 'flex-end' }}>
+              <div className="field">
+                <label htmlFor="per-next-start" className="label">Bắt đầu từ ngày (tùy chọn)</label>
+                <input id="per-next-start" type="date" className="input" value={cutStart} onChange={e => setCutStart(e.target.value)} />
+              </div>
+              <button type="button" className="btn-secondary" onClick={async () => { const r = await api.openNextPeriod(cutStart); if (r.ok) setCutStart(''); }}>Mở kỳ {store.nextLabel}</button>
             </div>
+            <p className="caption">Để trống = bắt đầu từ ngày 1. Chọn ngày khác khi muốn mốc riêng, ví dụ hôm nay vẫn tính kỳ {o.label} thì chọn ngày mai; kỳ {o.label} sẽ kéo dài tới hôm nay.</p>
           </>
         ) : (
           <p className="caption">Kỳ {o.label} và {nextLabel} đang cùng mở. Số đầu kỳ {nextLabel} đang tạm tính theo kỳ {o.label}; chốt kỳ {o.label} ở trên khi mọi đơn đã xong. Muốn mở kỳ mới nữa thì phải chốt kỳ {o.label} trước.</p>
