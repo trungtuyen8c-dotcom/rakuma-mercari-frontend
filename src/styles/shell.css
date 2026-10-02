@@ -130,3 +130,4 @@
 .signin-account .n { font-size: 14px; font-weight: 600; letter-spacing: -0.224px; color: var(--c-ink); }
 .signin-account .e { font-size: 14px; letter-spacing: -0.224px; color: var(--c-ink-muted-80); }
 .signin-fineprint { margin: 0; font-size: 12px; line-height: 1.3; letter-spacing: -0.12px; color: var(--c-ink-muted-48); }
+.gnav-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: var(--r-pill); background: var(--c-danger); color: var(--c-on-dark); font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; vertical-align: 1px; }

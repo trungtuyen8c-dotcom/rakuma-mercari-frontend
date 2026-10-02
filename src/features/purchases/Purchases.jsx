@@ -12,7 +12,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   const [form, setForm] = useState(blank);
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
-  const [filter, setFilter] = useState({ period: '', source: 'all', product: 'all', status: 'all' });
+  const [filter, setFilter] = useState({ period: '', source: 'all', product: 'all', status: 'all', q: '' });
   const firstRef = useFocusOn(composerOpen, composerSeq);
 
   const set = (k, v) => {
@@ -35,8 +35,11 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   };
   const cancel = () => { setForm(blank()); setErrors({}); setWarnings([]); closeComposer(); };
 
+  const allPeriods = filter.period === 'all';
   const period = store.periods.find(p => p.id === (filter.period || store.openPeriod.id)) || store.openPeriod;
-  const match = r => r.periodId === period.id
+  const q = filter.q.trim().toLowerCase();
+  const match = r => (allPeriods || r.periodId === period.id)
+    && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
     && (filter.source === 'all' || r.source === filter.source)
     && (filter.product === 'all' || r.productId === filter.product)
     && (filter.status === 'all'
@@ -113,7 +116,9 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 
       <div className="stack-md">
         <div role="group" aria-label="Bộ lọc" className="row-wrap">
-          <select aria-label="Kỳ" className="pill" value={period.id} onChange={setF('period')}>
+          <input type="search" aria-label="Tìm dòng nhập" className="pill pill--search" placeholder="Tìm sản phẩm, link, vận đơn, ghi chú…" value={filter.q} onChange={setF('q')} />
+          <select aria-label="Kỳ" className="pill" value={allPeriods ? 'all' : period.id} onChange={setF('period')}>
+            <option value="all">Tất cả kỳ</option>
             {store.periods.map(p => <option key={p.id} value={p.id}>{`Kỳ ${p.label} · ${periodStatusText(p)}`}</option>)}
           </select>
           <select aria-label="Nguồn" className="pill" value={filter.source} onChange={setF('source')}>
@@ -137,7 +142,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
           <p className="caption"><strong>{rows.length} dòng</strong> · Tổng tiền {yen(rows.reduce((a, r) => a + r.total, 0))}</p>
           <p className="caption">Ô đỏ có chữ “trùng”: link hoặc mã vận đơn đã có ở dòng khác.</p>
         </div>
-        {period.status === 'CLOSED' && (
+        {!allPeriods && period.status === 'CLOSED' && (
           <p className="note">{`Kỳ ${period.label} đã chốt ngày ${fmtDate(period.closedAt)}. Dữ liệu chỉ xem, không thể sửa.`}</p>
         )}
         <div role="region" aria-label="Bảng nhập hàng" tabIndex={0} className="table-wrap">
@@ -162,7 +167,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <tbody>
               {rows.map(r => (
                 <tr key={r.id}>
-                  <td className="r dim">{r.stt}</td>
+                  <td className="r dim nw">{allPeriods ? `${r.periodLabel} · ${r.stt}` : r.stt}</td>
                   <td className="nw">{fmtDate(r.date)}</td>
                   <td className="nw">{r.source === 'BULK' ? 'Lô lớn' : 'Thường'}</td>
                   <td className="b">{r.productName}</td>
