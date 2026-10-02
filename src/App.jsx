@@ -65,7 +65,7 @@ export default function App() {
         <div className="wrap subnav-bar">
           <div className="subnav-title">
             <h1 className="h-tile">{NAV.find(n => n[0] === screen)[1]}</h1>
-            <span className="subnav-badge">Kỳ {store.openPeriod.label} · Đang mở</span>
+            <span className="subnav-badge">Kỳ {store.openPeriods.map(p => p.label).join(' và ')} · Đang mở</span>
           </div>
           {cta && <button type="button" className="btn-primary btn-sm" onClick={() => openComposer(cta[0])}>{cta[1]}</button>}
         </div>

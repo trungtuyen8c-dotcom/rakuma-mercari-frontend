@@ -3,6 +3,7 @@ import { useApp } from '../../store/app-store';
 import { yen, fmtDate } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
+import PeriodField from '../../components/PeriodField';
 import './rakuma.css';
 
 export const RATINGS = [['', 'Chưa đánh giá'], ['GOOD', 'Tốt'], ['NORMAL', 'Bình thường'], ['BAD', 'Không tốt']];
@@ -279,14 +280,16 @@ function Thread({ order }) {
   );
 }
 
-const initial = (o, open) => ({
-  productId: '', source: 'REGULAR', qty: '1', price: String(o.price), discount: o.discount ? String(o.discount) : '',
-  date: o.date && o.date >= open.start && o.date <= open.end ? o.date : '', note: `Rakuma ${o.orderNo} · ${o.title}`,
+const inOpen = (date, opens) => !!date && opens.some(p => date >= p.start && date <= p.end);
+
+const initial = (o, opens) => ({
+  periodId: '', productId: '', source: 'REGULAR', qty: '1', price: String(o.price), discount: o.discount ? String(o.discount) : '',
+  date: inOpen(o.date, opens) ? o.date : '', note: `Rakuma ${o.orderNo} · ${o.title}`,
 });
 
 function ApproveForm({ order }) {
   const { store, api } = useApp();
-  const [form, setForm] = useState(() => initial(order, store.openPeriod));
+  const [form, setForm] = useState(() => initial(order, store.openPeriods));
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
   const id = k => `rk-${order.id}-${k}`;
@@ -317,9 +320,10 @@ function ApproveForm({ order }) {
     <form className="rk-approve" noValidate aria-label={`Duyệt đơn ${order.orderNo}`} onSubmit={e => { e.preventDefault(); save(false); }}>
       <h4 className="label">Đưa vào Nhập hàng</h4>
       {order.date && !form.date && (
-        <p className="note">Ngày đặt {fmtDate(order.date)} nằm ngoài kỳ đang mở {store.openPeriod.label}, nên ô Ngày đặt để trống. Dòng nhập vẫn ghi vào kỳ {store.openPeriod.label}.</p>
+        <p className="note">Ngày đặt {fmtDate(order.date)} không thuộc kỳ nào đang mở ({store.openPeriods.map(p => p.label).join(', ')}), nên ô Ngày đặt để trống. Dòng nhập sẽ ghi vào kỳ {store.openPeriod.label} nếu bạn không chọn kỳ khác.</p>
       )}
       <div className="form-grid">
+        <PeriodField id={id('period')} store={store} value={form.periodId} onChange={on('periodId')} error={errors.periodId} />
         <Field id={id('product')} label="Sản phẩm *" error={errors.productId}>
           <select {...invalidProps(id('product'), errors.productId)} className="input" value={form.productId} onChange={on('productId')}>
             <option value="">Chọn sản phẩm</option>

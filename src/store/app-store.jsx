@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { computeStore } from './compute';
 import { api as http } from '../services/api';
-import { yen } from '../utils/format';
+import { yen, fmtDate } from '../utils/format';
 
 const AppContext = createContext(null);
 
@@ -85,6 +85,9 @@ function buildApi(reload, notify, setSignedOut) {
     broadcastRakuma: async (orderIds, body) => result(await http.post('/rakuma/broadcast', { orderIds, body }),
       r => `Đã xếp ${r.queued} tin hỏi hàng. Claude sẽ dịch và gửi chậm ở các lần sync tới.${r.skipped ? ` Bỏ qua ${r.skipped} đơn đã đóng chat.` : ''}`),
     deleteRakumaReply: async id => act(await http.del(`/rakuma/replies/${id}`), 'Đã hủy câu trả lời.'),
+
+    openNextPeriod: async start => act(await http.post('/periods/open-next', start ? { start } : {}),
+      p => `Đã mở kỳ ${p.label} từ ${fmtDate(p.start)}. Giao dịch mới có ngày từ hôm đó sẽ tự vào kỳ này.`),
 
     closePeriod: async (closing, totals) => act(await http.post('/periods/close'),
       p => `Đã chốt kỳ ${closing}: vốn ${yen(totals.totalCost)}, doanh thu ${yen(totals.totalRevenue)}. Kỳ ${p.label} đã mở.`),
