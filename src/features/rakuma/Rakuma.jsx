@@ -1,91 +1,202 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../../store/app-store';
-import { yen, fmtDate, shortUrl } from '../../utils/format';
+import { yen, fmtDate } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import './rakuma.css';
 
-// Orders arrive from Claude's Rakuma sync (POST /rakuma/sync). Here the owner reads seller messages and turns each
-// queued order into a purchase by picking the product; a lump listing ("5BOX") is split by setting the qty.
+export const RATINGS = [['', 'Chưa đánh giá'], ['GOOD', 'Tốt'], ['NORMAL', 'Bình thường'], ['BAD', 'Không tốt']];
+
+const queued = o => !o.purchaseId && !o.dismissed;
+const pendingReplies = o => o.replies.filter(r => r.status === 'PENDING').length;
+export const needsAttention = o => !!o.issueNote || o.newMessages > 0 || queued(o);
+
+// Orders arrive from Claude's Rakuma sync (POST /rakuma/sync). The owner reads seller messages, writes replies in
+// Vietnamese (Claude translates and posts them on the next sync), tracks problems, and turns queued orders into purchases.
 export default function Rakuma() {
   const { store } = useApp();
-  const [showDismissed, setShowDismissed] = useState(false);
+  const [showOthers, setShowOthers] = useState(false);
   const orders = store.rakuma;
-  const withNews = orders.filter(o => o.newMessages > 0);
-  const queue = orders.filter(o => !o.purchaseId && !o.dismissed);
-  const dismissed = orders.filter(o => !o.purchaseId && o.dismissed);
+  const issues = orders.filter(o => o.issueNote);
+  const chats = orders.filter(o => !o.issueNote && (o.newMessages > 0 || pendingReplies(o) > 0));
+  const queue = orders.filter(o => !o.issueNote && !chats.includes(o) && queued(o));
+  const others = orders.filter(o => !issues.includes(o) && !chats.includes(o) && !queue.includes(o));
   const lastSync = orders.reduce((a, o) => (o.syncedAt > a ? o.syncedAt : a), '');
 
   return (
     <section aria-label="Rakuma" className="page">
       <p className="caption">
         {lastSync ? <>Lần đồng bộ gần nhất: <strong>{lastSync}</strong> (giờ Nhật).</> : 'Chưa đồng bộ lần nào.'}
-        {' '}Nhắn Claude “sync Rakuma” để cập nhật đơn mua, mã vận đơn và tin nhắn.
+        {' '}Nhắn Claude “sync Rakuma” để cập nhật đơn mua, mã vận đơn, tin nhắn và gửi các câu trả lời đang chờ.
       </p>
 
+      {issues.length > 0 && (
+        <div className="stack-md">
+          <h2 className="h-tile rk-h-issue">Cần xử lý <span className="rk-count rk-count--danger">{issues.length}</span></h2>
+          {issues.map(o => <OrderCard key={o.id} order={o} />)}
+        </div>
+      )}
+
       <div className="stack-md">
-        <h2 className="h-tile">Tin nhắn mới <span className="muted">· {withNews.length}</span></h2>
-        {withNews.length === 0 && <p className="caption">Không có tin nhắn nào chưa xử lý.</p>}
-        {withNews.map(o => <MessageCard key={o.id} order={o} />)}
+        <h2 className="h-tile">Tin nhắn <span className="muted">· {chats.length}</span></h2>
+        {chats.length === 0 && <p className="caption">Không có tin nhắn mới hay câu trả lời đang chờ gửi.</p>}
+        {chats.map(o => <OrderCard key={o.id} order={o} />)}
       </div>
 
       <div className="stack-md">
         <h2 className="h-tile">Chờ duyệt <span className="muted">· {queue.length}</span></h2>
         {queue.length === 0 && <p className="caption">Không có đơn nào chờ duyệt.</p>}
-        {queue.map(o => <ApproveCard key={o.id} order={o} />)}
-        {dismissed.length > 0 && (
-          <button type="button" className="btn-link btn-link--tight" aria-expanded={showDismissed} onClick={() => setShowDismissed(v => !v)}>
-            {showDismissed ? 'Ẩn' : 'Xem'} {dismissed.length} đơn đã bỏ qua
-          </button>
-        )}
-        {showDismissed && dismissed.map(o => <DismissedRow key={o.id} order={o} />)}
+        {queue.map(o => <OrderCard key={o.id} order={o} />)}
       </div>
+
+      {others.length > 0 && (
+        <div className="stack-md">
+          <button type="button" className="btn-link btn-link--tight" aria-expanded={showOthers} onClick={() => setShowOthers(v => !v)}>
+            {showOthers ? 'Ẩn' : 'Xem'} {others.length} đơn khác (đã nhập hoặc đã bỏ qua)
+          </button>
+          {showOthers && others.map(o => <OrderCard key={o.id} order={o} collapsed />)}
+        </div>
+      )}
     </section>
+  );
+}
+
+function OrderCard({ order, collapsed }) {
+  const [open, setOpen] = useState(!collapsed);
+  const cls = 'card rk-card' + (order.issueNote ? ' rk-card--issue' : '');
+  return (
+    <article className={cls} aria-label={`Đơn Rakuma ${order.orderNo}`}>
+      <OrderHead order={order} />
+      {collapsed && (
+        <button type="button" className="btn-link btn-link--tight" aria-expanded={open} onClick={() => setOpen(v => !v)}>
+          {open ? 'Thu gọn' : 'Mở chi tiết'}
+        </button>
+      )}
+      {open && (
+        <>
+          <IssuePanel order={order} />
+          <Thread order={order} />
+          {queued(order) && <ApproveForm order={order} />}
+          {order.dismissed && <Restore order={order} />}
+        </>
+      )}
+    </article>
   );
 }
 
 function OrderHead({ order }) {
   return (
     <div className="rk-head">
-      <h3 className="rk-title">
-        <a href={order.link} target="_blank" rel="noopener noreferrer">{order.title}</a>
-      </h3>
-      <p className="caption">
-        {order.status || '—'} · Đặt {fmtDate(order.date)} · {yen(order.price)}
-        {order.discount > 0 && ` − ${yen(order.discount)} coupon`}
-        {order.tracking && ` · Vận đơn ${order.tracking}`}
-        {order.seller && ` · ${order.seller}`} · Đơn {order.orderNo}
-      </p>
+      {order.image
+        ? <img className="rk-thumb" src={order.image} alt="" loading="lazy" referrerPolicy="no-referrer" />
+        : <div className="rk-thumb" aria-hidden="true" />}
+      <div className="rk-head-text">
+        <h3 className="rk-title">
+          <a href={order.link} target="_blank" rel="noopener noreferrer">{order.title}</a>
+        </h3>
+        <p className="caption">
+          {order.status || '—'} · Đặt {fmtDate(order.date)} · {yen(order.price)}
+          {order.discount > 0 && ` − ${yen(order.discount)} coupon`}
+        </p>
+        <p className="caption">
+          {order.seller || 'Người bán ?'} · Đơn {order.orderNo}
+          {order.carrier && ` · ${order.carrier}`}
+          {' · '}{order.tracking ? <>Vận đơn <strong>{order.tracking}</strong></> : 'Chưa có mã vận đơn'}
+          {order.purchaseId && ' · Đã nhập'}
+        </p>
+        <p className="caption">
+          <a href={order.link} target="_blank" rel="noopener noreferrer">Mở trang món</a>
+        </p>
+      </div>
     </div>
   );
 }
 
-function MessageCard({ order }) {
+// Seller rating + the owner's problem note. A non-empty note turns the whole card red and lists it under "Cần xử lý".
+function IssuePanel({ order }) {
   const { api } = useApp();
+  const [note, setNote] = useState(order.issueNote);
+  useEffect(() => { setNote(order.issueNote); }, [order.issueNote]);
+  const id = k => `rk-${order.id}-${k}`;
+  const dirty = note.trim() !== order.issueNote;
+
   return (
-    <article className="card" aria-label={`Tin nhắn đơn ${order.orderNo}`}>
-      <OrderHead order={order} />
-      {order.summary && <p className="rk-summary">{order.summary}</p>}
-      <ol className="rk-thread">
-        {order.messages.map(m => (
-          <li key={m.id} className={'rk-msg' + (m.from === 'buyer' ? ' rk-msg--me' : '') + (m.new ? ' rk-msg--new' : '')}>
-            <p className="caption">{m.from === 'buyer' ? 'Bạn' : 'Người bán'}{m.at && ` · ${m.at}`}{m.new && ' · mới'}</p>
-            <p className="rk-body">{m.body}</p>
-          </li>
-        ))}
-      </ol>
-      {order.replyDraft && (
-        <div className="rk-draft">
-          <p className="label">Câu trả lời Claude soạn sẵn</p>
-          <p className="rk-body">{order.replyDraft}</p>
-          <p className="caption">Muốn gửi thì duyệt trong chat với Claude. Claude không tự gửi.</p>
-        </div>
-      )}
-      <div className="row-wrap">
-        <button type="button" className="btn-secondary btn-sm" onClick={() => api.handleRakuma(order.id)}>Đã xử lý</button>
-        <a className="btn-link btn-link--tight" href={order.link} target="_blank" rel="noopener noreferrer">Mở trên Rakuma</a>
+    <div className={'rk-issue' + (order.issueNote ? ' rk-issue--open' : '')}>
+      <div className="form-grid">
+        <Field id={id('rating')} label="Đánh giá người bán">
+          <select id={id('rating')} className="input" value={order.rating} onChange={e => api.updateRakuma(order.id, { rating: e.target.value })}>
+            {RATINGS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </Field>
+        <Field id={id('issue')} label={order.issueNote ? 'Vấn đề đang mở' : 'Vấn đề cần giải quyết'} full>
+          <textarea id={id('issue')} className="input rk-textarea" rows={2} value={note} onChange={e => setNote(e.target.value)}
+            placeholder="Ví dụ: hộp bị móp, thiếu hàng, giao trễ… Ghi vào đây để đơn này nổi lên mục Cần xử lý." />
+        </Field>
       </div>
-    </article>
+      <div className="row-wrap">
+        <button type="button" className="btn-secondary btn-sm" disabled={!dirty} onClick={() => api.updateRakuma(order.id, { issueNote: note })}>Lưu ghi chú</button>
+        {order.issueNote && (
+          <button type="button" className="btn-link btn-link--tight" onClick={() => api.updateRakuma(order.id, { issueNote: '' })}>Đã giải quyết</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Thread({ order }) {
+  const { api } = useApp();
+  const [body, setBody] = useState('');
+  const [error, setError] = useState('');
+  const id = `rk-${order.id}-reply`;
+  const send = async () => {
+    const r = await api.replyRakuma(order.id, body);
+    if (r.ok) { setBody(''); setError(''); } else setError(r.errors?.body || r.error);
+  };
+  const hasThread = order.messages.length > 0 || order.replies.length > 0;
+
+  return (
+    <div className="stack-md">
+      {order.summary && <p className="rk-summary"><strong>Tóm tắt:</strong> {order.summary}</p>}
+      {hasThread && (
+        <ol className="rk-thread" aria-label="Tin nhắn giao dịch">
+          {order.messages.map(m => (
+            <li key={'m' + m.id} className={'rk-msg' + (m.from === 'buyer' ? ' rk-msg--me' : '') + (m.new ? ' rk-msg--new' : '')}>
+              <p className="caption">{m.from === 'buyer' ? 'Bạn' : 'Người bán'}{m.at && ` · ${m.at}`}{m.new && ' · mới'}</p>
+              <p className="rk-body">{m.body}</p>
+            </li>
+          ))}
+          {order.replies.filter(r => r.status === 'PENDING').map(r => (
+            <li key={'r' + r.id} className="rk-msg rk-msg--me rk-msg--pending">
+              <p className="caption">Bạn · chờ Claude dịch và gửi</p>
+              <p className="rk-body">{r.bodyVi}</p>
+              <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => api.deleteRakumaReply(r.id)}>Hủy</button>
+            </li>
+          ))}
+        </ol>
+      )}
+      {order.replies.some(r => r.status === 'SENT') && (
+        <details className="rk-sent">
+          <summary className="caption">Đã gửi {order.replies.filter(r => r.status === 'SENT').length} câu trả lời (xem bản tiếng Việt và tiếng Nhật)</summary>
+          {order.replies.filter(r => r.status === 'SENT').map(r => (
+            <div key={r.id} className="rk-sent-item">
+              <p className="caption">{r.sentAt}</p>
+              <p className="rk-body">{r.bodyVi}</p>
+              <p className="rk-body muted">{r.bodyJa}</p>
+            </div>
+          ))}
+        </details>
+      )}
+      <Field id={id} label="Trả lời người bán (viết tiếng Việt)" error={error}>
+        <textarea {...invalidProps(id, error)} className="input rk-textarea" rows={2} value={body} onChange={e => { setBody(e.target.value); setError(''); }}
+          placeholder="Claude sẽ dịch sang tiếng Nhật lịch sự và gửi vào khung chat của đơn này ở lần sync tới." />
+      </Field>
+      <div className="row-wrap">
+        <button type="button" className="btn-primary btn-sm" disabled={!body.trim()} onClick={send}>Gửi trả lời</button>
+        {order.newMessages > 0 && (
+          <button type="button" className="btn-secondary btn-sm" onClick={() => api.handleRakuma(order.id)}>Đã đọc, không cần trả lời</button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -94,7 +205,7 @@ const initial = (o, open) => ({
   date: o.date && o.date >= open.start && o.date <= open.end ? o.date : '', note: `Rakuma ${o.orderNo} · ${o.title}`,
 });
 
-function ApproveCard({ order }) {
+function ApproveForm({ order }) {
   const { store, api } = useApp();
   const [form, setForm] = useState(() => initial(order, store.openPeriod));
   const [errors, setErrors] = useState({});
@@ -124,8 +235,8 @@ function ApproveCard({ order }) {
   const valid = form.price !== '' && price > 0 && qty >= 1 && disc >= 0 && disc <= price;
 
   return (
-    <form className="card" noValidate aria-label={`Duyệt đơn ${order.orderNo}`} onSubmit={e => { e.preventDefault(); save(false); }}>
-      <OrderHead order={order} />
+    <form className="rk-approve" noValidate aria-label={`Duyệt đơn ${order.orderNo}`} onSubmit={e => { e.preventDefault(); save(false); }}>
+      <h4 className="label">Đưa vào Nhập hàng</h4>
       {order.date && !form.date && (
         <p className="note">Ngày đặt {fmtDate(order.date)} nằm ngoài kỳ đang mở {store.openPeriod.label}, nên ô Ngày đặt để trống. Dòng nhập vẫn ghi vào kỳ {store.openPeriod.label}.</p>
       )}
@@ -169,16 +280,15 @@ function ApproveCard({ order }) {
           <button type="submit" className="btn-primary" disabled={!form.productId || !valid}>Lưu vào Nhập hàng</button>
         </div>
       </div>
-      {order.link && <p className="caption">Link: {shortUrl(order.link)}</p>}
     </form>
   );
 }
 
-function DismissedRow({ order }) {
+function Restore({ order }) {
   const { api } = useApp();
   return (
-    <div className="row-between">
-      <p className="caption">{order.title} · {yen(order.price)} · Đơn {order.orderNo}</p>
+    <div className="row-wrap">
+      <p className="caption">Đơn này đã bỏ qua, không đưa vào Nhập hàng.</p>
       <button type="button" className="btn-link btn-link--tight" onClick={() => api.dismissRakuma(order.id, false)}>Đưa về hàng chờ</button>
     </div>
   );

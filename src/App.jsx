@@ -11,7 +11,7 @@ import Products from './features/products/Products';
 import Analysis from './features/analysis/Analysis';
 import Periods from './features/periods/Periods';
 import Settings from './features/settings/Settings';
-import Rakuma from './features/rakuma/Rakuma';
+import Rakuma, { needsAttention } from './features/rakuma/Rakuma';
 
 const SCREENS = { dashboard: Dashboard, purchases: Purchases, sales: Sales, inventory: Inventory, products: Products, analysis: Analysis, periods: Periods, settings: Settings, rakuma: Rakuma };
 
@@ -60,7 +60,7 @@ export default function App() {
   return (
     <>
       <button type="button" className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Bỏ qua tới nội dung chính</button>
-      <AppHeader screen={screen} email={store.user.email} onSignOut={signOut} />
+      <AppHeader screen={screen} email={store.user.email} onSignOut={signOut} badges={{ rakuma: store.rakuma.filter(needsAttention).length }} />
       <div className="subnav">
         <div className="wrap subnav-bar">
           <div className="subnav-title">

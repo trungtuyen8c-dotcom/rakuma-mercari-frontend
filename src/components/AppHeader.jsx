@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NAV } from '../routes/nav';
 import { useWindowWidth } from '../hooks/use-window-width';
 
-export default function AppHeader({ screen, email, onSignOut }) {
+export default function AppHeader({ screen, email, onSignOut, badges = {} }) {
   const narrow = useWindowWidth() < 1024;
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -16,7 +16,10 @@ export default function AppHeader({ screen, email, onSignOut }) {
 
   const links = NAV.map(([id, label]) => (
     <li key={id}>
-      <a href={'#' + id} className="gnav-link" aria-current={screen === id ? 'page' : undefined}>{label}</a>
+      <a href={'#' + id} className="gnav-link" aria-current={screen === id ? 'page' : undefined}>
+        {label}
+        {badges[id] > 0 && <span className="gnav-badge" aria-label={`, ${badges[id]} việc cần xem`}>{badges[id]}</span>}
+      </a>
     </li>
   ));
 

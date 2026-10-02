@@ -79,6 +79,10 @@ function buildApi(reload, notify, setSignedOut) {
     approveRakuma: async (id, d, f) => result(await http.post(`/rakuma/orders/${id}/approve` + force(f), d), r => `Đã nhập “${r.productName}” từ Rakuma: ${yen(r.total)}.`),
     dismissRakuma: async (id, dismissed) => act(await http.post(`/rakuma/orders/${id}/dismiss`, { dismissed }), dismissed ? 'Đã bỏ qua đơn này.' : 'Đã đưa đơn về hàng chờ.'),
     handleRakuma: async id => act(await http.post(`/rakuma/orders/${id}/messages-handled`), 'Đã đánh dấu đã xử lý tin nhắn.'),
+    updateRakuma: async (id, patch) => act(await http.patch(`/rakuma/orders/${id}`, patch),
+      'issueNote' in patch ? (patch.issueNote.trim() ? 'Đã lưu vấn đề. Đơn này nằm ở mục Cần xử lý.' : 'Đã đánh dấu vấn đề đã giải quyết.') : 'Đã lưu đánh giá.'),
+    replyRakuma: async (id, body) => result(await http.post(`/rakuma/orders/${id}/replies`, { body }), 'Đã lưu câu trả lời. Claude sẽ dịch và gửi ở lần sync tới.'),
+    deleteRakumaReply: async id => act(await http.del(`/rakuma/replies/${id}`), 'Đã hủy câu trả lời.'),
 
     closePeriod: async (closing, totals) => act(await http.post('/periods/close'),
       p => `Đã chốt kỳ ${closing}: vốn ${yen(totals.totalCost)}, doanh thu ${yen(totals.totalRevenue)}. Kỳ ${p.label} đã mở.`),
