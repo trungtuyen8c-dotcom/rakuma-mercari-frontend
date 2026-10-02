@@ -4,8 +4,10 @@ import { yen, qtyText, periodStatusText } from '../../utils/format';
 import './dashboard.css';
 
 export default function Dashboard() {
-  const { store } = useApp();
+  const { store, api } = useApp();
   const [pid, setPid] = useState('');
+  const [edit, setEdit] = useState(null); // { cost, revenue } while correcting the totals
+  const [editErr, setEditErr] = useState({});
   // Closed periods are recomputed from that month's raw rows
   const st = store.statsFor(pid || store.openPeriod.id), p = st.period, t = st.totals, isOpen = p.status === 'OPEN';
   const idx = store.periods.findIndex(x => x.id === p.id), prev = idx > 0 ? store.periods[idx - 1] : null;
@@ -19,7 +21,7 @@ export default function Dashboard() {
             <div className="stack-xxs" style={{ gap: 'var(--s-xs)' }}>
               <h2 id="dash-total-h" className="h-tile">{isOpen ? 'Tổng cộng từ đầu' : `Tổng cộng đến hết tháng ${p.label}`}</h2>
               <p className="dash-hero-sub">
-                {isOpen ? `Kỳ trước + tháng ${p.label} (đang mở)` : `Tháng ${p.label} đã chốt · ${st.matches ? 'số tính lại khớp số chốt' : 'số tính lại LỆCH số chốt, cần kiểm tra'}`}
+                {isOpen ? `Kỳ trước + tháng ${p.label} (đang mở)` : `Tháng ${p.label} đã chốt · ${st.matches ? 'số hiện tại khớp số lúc chốt' : 'đã sửa sau khi chốt, số dưới đây là số mới'}`}
               </p>
             </div>
             <div className="field">
@@ -34,6 +36,37 @@ export default function Dashboard() {
             <div><dt>Tổng doanh thu</dt><dd>{yen(t.totalRevenue)}</dd></div>
             <div><dt>Lợi nhuận</dt><dd>{yen(t.totalProfit)}</dd></div>
           </dl>
+          {!edit && (
+            <p className="dash-hero-sub">
+              {(t.adjustCost || t.adjustRevenue) ? `Đã sửa tay trong tháng ${p.label}: vốn ${t.adjustCost >= 0 ? '+' : ''}${yen(t.adjustCost)}, doanh thu ${t.adjustRevenue >= 0 ? '+' : ''}${yen(t.adjustRevenue)}. ` : ''}
+              <button type="button" className="btn-link btn-link--tight" style={{ color: 'var(--c-primary-on-dark)' }}
+                onClick={() => { setEdit({ cost: String(t.totalCost), revenue: String(t.totalRevenue) }); setEditErr({}); }}>Sửa tổng vốn / doanh thu</button>
+            </p>
+          )}
+          {edit && (
+            <form className="dash-edit" noValidate onSubmit={async e => {
+              e.preventDefault();
+              if (p.status === 'CLOSED' && !window.confirm(`Tháng ${p.label} đã chốt. Sửa tổng sẽ làm thay đổi số các tháng sau. Tiếp tục?`)) return;
+              const r = await api.setPeriodTotals(p.id, { totalCost: edit.cost, totalRevenue: edit.revenue });
+              if (r.ok) setEdit(null); else setEditErr(r.errors || { totalCost: r.error });
+            }}>
+              <div className="field">
+                <label htmlFor="dash-edit-cost" className="dash-hero-sub">Tổng vốn đúng (¥)</label>
+                <input id="dash-edit-cost" type="number" inputMode="numeric" step="1" className="input" value={edit.cost} onChange={e => setEdit(x => ({ ...x, cost: e.target.value }))} />
+                {editErr.totalCost && <p className="text-danger">{editErr.totalCost}</p>}
+              </div>
+              <div className="field">
+                <label htmlFor="dash-edit-rev" className="dash-hero-sub">Tổng doanh thu đúng (¥)</label>
+                <input id="dash-edit-rev" type="number" inputMode="numeric" step="1" className="input" value={edit.revenue} onChange={e => setEdit(x => ({ ...x, revenue: e.target.value }))} />
+                {editErr.totalRevenue && <p className="text-danger">{editErr.totalRevenue}</p>}
+              </div>
+              <div className="row-wrap">
+                <button type="submit" className="btn-primary btn-sm">Lưu</button>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setEdit(null)}>Hủy</button>
+              </div>
+              <p className="dash-hero-sub">Phần chênh được ghi thành “sửa tay” của tháng {p.label}. Lợi nhuận và mọi tháng sau tự tính lại. Muốn sửa đúng từng đơn thì dùng nút Sửa ở Nhập hàng / Bán hàng.</p>
+            </form>
+          )}
           <p className="dash-hero-sub" style={{ maxWidth: 720 }}>
             Lợi nhuận đang tính theo dòng tiền: Tổng doanh thu − Tổng vốn. Tiền mua {stockUnits} món {isOpen ? 'còn trong kho' : `tồn cuối tháng ${p.label}`} cũng đã bị trừ.{' '}
             <a href="#inventory" style={{ color: 'var(--c-primary-on-dark)' }}>Xem tồn kho</a>

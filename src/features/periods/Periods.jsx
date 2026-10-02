@@ -17,10 +17,9 @@ export default function Periods() {
   }, [confirming]);
 
   const cost = yen(t.totalCost), revenue = yen(t.totalRevenue);
-  const history = store.periods.map((p, i, all) => {
-    const st = store.statsFor(p.id), nx = all[i + 1];
-    const chain = !nx || (nx.openingCost === p.closingCost && nx.openingRevenue === p.closingRevenue);
-    const ok = st.matches && chain, isOpen = p.status === 'OPEN';
+  const history = store.periods.map(p => {
+    const st = store.statsFor(p.id);
+    const ok = st.matches, isOpen = p.status === 'OPEN';
     return { p, st, isOpen, ok };
   }).reverse();
 
@@ -82,7 +81,7 @@ export default function Periods() {
       <div className="stack-md">
         <div className="stack-xxs">
           <h2 className="h-tile">Lịch sử các tháng</h2>
-          <p className="caption">Mỗi kỳ là một tháng dương lịch. Đối chiếu: vốn đầu kỳ + nhập trong tháng phải bằng vốn lúc chốt, và bằng vốn đầu kỳ của tháng sau.</p>
+          <p className="caption">Mỗi kỳ là một tháng. Vốn đầu kỳ của tháng sau luôn bằng vốn cuối của tháng trước, nên sửa một tháng cũ thì các tháng sau tự tính lại. “Đã sửa sau chốt”: số hiện tại khác số lưu lúc bấm chốt.</p>
         </div>
         <div role="region" aria-label="Bảng lịch sử kỳ" tabIndex={0} className="table-wrap">
           <table className="table" style={{ minWidth: 900 }}>
@@ -110,7 +109,7 @@ export default function Periods() {
                   <td className="r">{yen(st.totals.periodRevenue)}</td>
                   <td className="r">{p.closingCost == null ? '—' : yen(p.closingCost)}</td>
                   <td className="r">{p.closingRevenue == null ? '—' : yen(p.closingRevenue)}</td>
-                  <td className={'b' + (!isOpen && !ok ? ' neg' : '')}>{isOpen ? 'Đang ghi' : ok ? 'Khớp' : 'Lệch'}</td>
+                  <td className={'b' + (!isOpen && !ok ? ' neg' : '')}>{isOpen ? 'Đang ghi' : ok ? 'Khớp' : 'Đã sửa sau chốt'}</td>
                 </tr>
               ))}
             </tbody>

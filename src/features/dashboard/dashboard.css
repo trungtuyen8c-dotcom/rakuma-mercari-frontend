@@ -19,3 +19,6 @@
 }
 .dash-stock { margin: 0; font-family: var(--f-display); font-size: clamp(40px, 5vw, 56px); font-weight: 600; line-height: 1.07; letter-spacing: -0.28px; font-variant-numeric: tabular-nums; }
 .dash-stock span { font-size: 21px; letter-spacing: 0.231px; }
+
+.dash-edit { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: var(--s-sm); align-items: end; }
+.dash-edit > p, .dash-edit > .row-wrap { grid-column: 1 / -1; }
