@@ -6,7 +6,10 @@ export default function Periods() {
   const { store, api } = useApp();
   const [confirming, setConfirming] = useState(false);
   const confirmRef = useRef(null);
-  const t = store.totals, o = store.openPeriod, neg = store.negatives;
+  // Closing always applies to the oldest open period; its successor may already be open
+  const o = store.openPeriods[0], st0 = store.statsFor(o.id), t = st0.totals, neg = st0.negatives;
+  const nextLabel = store.openPeriods[1]?.label || store.nextLabel;
+  const canOpenNext = store.openPeriods.length < 2;
 
   useEffect(() => {
     if (confirming) requestAnimationFrame(() => confirmRef.current && confirmRef.current.focus());
@@ -41,8 +44,8 @@ export default function Periods() {
           <div role="alertdialog" aria-labelledby="per-confirm-h" aria-describedby="per-confirm-d" className="note stack-md" style={{ padding: 'var(--s-md)', gap: 'var(--s-sm)' }}>
             <h3 id="per-confirm-h" style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Chốt kỳ {o.label}?</h3>
             <ul id="per-confirm-d" className="stack-xxs" style={{ margin: 0, paddingLeft: 20, fontSize: 14, lineHeight: 1.43 }}>
-              <li>Vốn kỳ trước của kỳ {store.nextLabel} = {cost}; doanh thu kỳ trước = {revenue}.</li>
-              <li>Tồn đầu kỳ {store.nextLabel} của từng sản phẩm = SL hiện tại.</li>
+              <li>Vốn kỳ trước của kỳ {nextLabel} = {cost}; doanh thu kỳ trước = {revenue}.</li>
+              <li>Tồn đầu kỳ {nextLabel} của từng sản phẩm = SL hiện tại.</li>
               <li>Dòng nhập và bán của kỳ {o.label} bị khóa, chỉ xem.</li>
             </ul>
             {neg.length > 0 && (
@@ -53,6 +56,20 @@ export default function Periods() {
               <button type="button" className="btn-secondary" style={{ background: 'transparent' }} onClick={() => setConfirming(false)}>Hủy</button>
             </div>
           </div>
+        )}
+      </article>
+
+      <article aria-labelledby="per-next-h" className="card">
+        <h2 id="per-next-h" className="h-tile">{canOpenNext ? `Mở trước kỳ ${store.nextLabel}` : `Kỳ ${nextLabel} đã mở trước`}</h2>
+        {canOpenNext ? (
+          <>
+            <p className="caption">Dùng khi sang tháng mới mà kỳ {o.label} còn đơn chưa xong (chưa nhận hàng, chưa đánh giá). Hai kỳ cùng mở: giao dịch tự vào kỳ theo ngày. Vốn, doanh thu và tồn đầu kỳ {store.nextLabel} tạm tính theo kỳ {o.label} cho tới khi bạn chốt kỳ {o.label}.</p>
+            <div className="row-wrap">
+              <button type="button" className="btn-secondary" onClick={() => api.openNextPeriod()}>Mở kỳ {store.nextLabel}</button>
+            </div>
+          </>
+        ) : (
+          <p className="caption">Kỳ {o.label} và {nextLabel} đang cùng mở. Số đầu kỳ {nextLabel} đang tạm tính theo kỳ {o.label}; chốt kỳ {o.label} ở trên khi mọi đơn đã xong. Muốn mở kỳ mới nữa thì phải chốt kỳ {o.label} trước.</p>
         )}
       </article>
 

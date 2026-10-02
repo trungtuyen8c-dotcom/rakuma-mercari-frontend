@@ -4,8 +4,9 @@ import { useFocusOn } from '../../hooks/use-focus-on';
 import { yen, fmtDate, shortUrl, periodStatusText } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
+import PeriodField, { targetPeriod } from '../../components/PeriodField';
 
-const blank = keep => ({ productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '' });
+const blank = keep => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '' });
 
 export default function Purchases({ composerOpen, composerSeq, closeComposer }) {
   const { store, api } = useApp();
@@ -60,9 +61,10 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
         <form onSubmit={e => { e.preventDefault(); save(false); }} noValidate aria-labelledby="pur-form-h" className="card card--lg">
           <div className="form-head">
             <h2 id="pur-form-h" className="h-tile">Thêm dòng nhập</h2>
-            <p className="caption">Ghi vào kỳ {store.openPeriod.label}. Tổng tiền = (Giá nhập − Giảm giá) × Số lượng.</p>
+            <p className="caption">Ghi vào kỳ {targetPeriod(store, form.periodId, form.date).label}. Tổng tiền = (Giá nhập − Giảm giá) × Số lượng.</p>
           </div>
           <div className="form-grid">
+            <PeriodField id="pur-period" store={store} value={form.periodId} onChange={on('periodId')} error={errors.periodId} />
             <Field id="pur-product" label="Sản phẩm *" error={errors.productId}>
               <select {...invalidProps('pur-product', errors.productId)} ref={firstRef} className="input" value={form.productId} onChange={on('productId')}>
                 <option value="">Chọn sản phẩm</option>

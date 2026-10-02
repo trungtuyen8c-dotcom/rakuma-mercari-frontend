@@ -4,8 +4,9 @@ import { useFocusOn } from '../../hooks/use-focus-on';
 import { yen, fmtDate, periodStatusText } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
+import PeriodField, { targetPeriod } from '../../components/PeriodField';
 
-const blank = keep => ({ productId: '', date: keep ? keep.date : '', qty: '1', price: '', ship: '', customer: '', note: '' });
+const blank = keep => ({ periodId: keep ? keep.periodId : '', productId: '', date: keep ? keep.date : '', qty: '1', price: '', ship: '', customer: '', note: '' });
 const noFilter = { period: '', product: 'all', date: '', customer: '' };
 
 export default function Sales({ composerOpen, composerSeq, closeComposer }) {
@@ -55,9 +56,10 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
         <form onSubmit={e => { e.preventDefault(); save(false); }} noValidate aria-labelledby="sale-form-h" className="card card--lg">
           <div className="form-head">
             <h2 id="sale-form-h" className="h-tile">Thêm đơn bán</h2>
-            <p className="caption">Ghi vào kỳ {store.openPeriod.label}. Tổng tiền = Số lượng × Đơn giá − Phí ship.</p>
+            <p className="caption">Ghi vào kỳ {targetPeriod(store, form.periodId, form.date).label}. Tổng tiền = Số lượng × Đơn giá − Phí ship.</p>
           </div>
           <div className="form-grid">
+            <PeriodField id="sale-period" store={store} value={form.periodId} onChange={on('periodId')} error={errors.periodId} />
             <Field
               id="sale-product" label="Sản phẩm *" error={errors.productId}
               hint={inv ? `Tồn hiện tại: ${inv.current} cái` : 'Chọn sản phẩm để xem tồn hiện tại.'}

@@ -26,7 +26,10 @@ function periodStats(s, pid, purchases, sales) {
 }
 
 export function computeStore(s) {
-  const open = s.periods.find(p => p.status === 'OPEN');
+  // Up to two periods can be open (an old month finishing while the next has started). New rows default to the newest.
+  const opens = s.periods.filter(p => p.status === 'OPEN').sort((a, b) => a.start.localeCompare(b.start));
+  const open = opens[opens.length - 1];
+  const latest = [...s.periods].sort((a, b) => a.start.localeCompare(b.start)).pop();
   const closed = s.periods.filter(p => p.status === 'CLOSED');
   const perById = {};
   s.periods.forEach(p => { perById[p.id] = p; });
@@ -58,7 +61,7 @@ export function computeStore(s) {
   const cur = statsFor(open.id);
   const products = s.products.map((p, i) => ({ ...p, stt: i + 1, txCount: tx[p.id] || 0 }));
   return {
-    openPeriod: open, prevPeriod: closed[closed.length - 1] || null, nextLabel: nextLabel(open.label), periods: s.periods,
+    openPeriod: open, openPeriods: opens, prevPeriod: closed[closed.length - 1] || null, nextLabel: nextLabel(latest.label), periods: s.periods,
     products, activeProducts: products.filter(p => p.active), purchases, sales,
     inventory: cur.inventory, negatives: cur.negatives, totals: cur.totals, statsFor,
     settings: s.settings, user: s.user, apiKeys: s.apiKeys, rakuma: s.rakuma || [],

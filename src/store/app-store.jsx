@@ -86,6 +86,8 @@ function buildApi(reload, notify, setSignedOut) {
       r => `Đã xếp ${r.queued} tin hỏi hàng. Claude sẽ dịch và gửi chậm ở các lần sync tới.${r.skipped ? ` Bỏ qua ${r.skipped} đơn đã đóng chat.` : ''}`),
     deleteRakumaReply: async id => act(await http.del(`/rakuma/replies/${id}`), 'Đã hủy câu trả lời.'),
 
+    openNextPeriod: async () => act(await http.post('/periods/open-next'), p => `Đã mở kỳ ${p.label}. Giao dịch mới có ngày trong tháng ${p.label} sẽ tự vào kỳ này.`),
+
     closePeriod: async (closing, totals) => act(await http.post('/periods/close'),
       p => `Đã chốt kỳ ${closing}: vốn ${yen(totals.totalCost)}, doanh thu ${yen(totals.totalRevenue)}. Kỳ ${p.label} đã mở.`),
   };

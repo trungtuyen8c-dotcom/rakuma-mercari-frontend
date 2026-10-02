@@ -13,7 +13,10 @@ export default function Inventory() {
   const [err, setErr] = useState('');
   const [pid, setPid] = useState('');
 
-  const stats = store.statsFor(pid || store.openPeriod.id), locked = stats.period.status === 'CLOSED';
+  const stats = store.statsFor(pid || store.openPeriod.id), closed = stats.period.status === 'CLOSED';
+  // Only the oldest open period stores its opening stock; a later open month derives it from the month before
+  const derived = !closed && stats.period.id !== store.openPeriods[0].id;
+  const locked = closed || derived;
   const needle = q.trim().toLowerCase();
   const list = stats.inventory
     .filter(i => (!needle || i.name.toLowerCase().includes(needle)) && (!onlyNeg || i.current < 0))
@@ -35,7 +38,7 @@ export default function Inventory() {
     <section aria-label="Tồn kho" className="page page--tight">
       {stats.negatives.length > 0 && (
         <div role="alert" className="alert alert--tight">
-          {stats.negatives.map(n => <p key={n.productId} className="text-danger">{`Sản phẩm “${n.name}” ${locked ? 'cuối tháng' : 'đang'} âm ${Math.abs(n.current)} cái.`}</p>)}
+          {stats.negatives.map(n => <p key={n.productId} className="text-danger">{`Sản phẩm “${n.name}” ${closed ? 'cuối tháng' : 'đang'} âm ${Math.abs(n.current)} cái.`}</p>)}
         </div>
       )}
       <div className="row-between">
@@ -52,7 +55,9 @@ export default function Inventory() {
         <p className="caption">Kỳ {stats.period.label} · Tổng tồn <strong>{qtyText(stats.totals.stockTotal)} món</strong></p>
       </div>
       <p className="caption">
-        {locked
+        {derived
+          ? `Tồn đầu kỳ ${stats.period.label} lấy theo SL hiện tại của kỳ ${store.openPeriods[0].label} (chưa chốt), nên không sửa ở đây.`
+          : closed
           ? `Tháng ${stats.period.label} đã chốt: số liệu chỉ xem, không sửa được tồn đầu kỳ.`
           : 'SL hiện tại = Tồn đầu kỳ + Nhập thêm − Đã bán. Sửa tồn đầu kỳ khi kiểm kê lệch rồi nhấn Enter hoặc rời ô để lưu.'}
       </p>
