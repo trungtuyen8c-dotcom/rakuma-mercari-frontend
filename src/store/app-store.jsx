@@ -76,6 +76,10 @@ function buildApi(reload, notify, setSignedOut) {
     },
     revokeApiKey: async id => act(await http.post(`/api-keys/${id}/revoke`), k => `Đã thu hồi key “${k.name}”. Công cụ đang dùng key này sẽ bị từ chối ngay.`),
 
+    approveRakuma: async (id, d, f) => result(await http.post(`/rakuma/orders/${id}/approve` + force(f), d), r => `Đã nhập “${r.productName}” từ Rakuma: ${yen(r.total)}.`),
+    dismissRakuma: async (id, dismissed) => act(await http.post(`/rakuma/orders/${id}/dismiss`, { dismissed }), dismissed ? 'Đã bỏ qua đơn này.' : 'Đã đưa đơn về hàng chờ.'),
+    handleRakuma: async id => act(await http.post(`/rakuma/orders/${id}/messages-handled`), 'Đã đánh dấu đã xử lý tin nhắn.'),
+
     closePeriod: async (closing, totals) => act(await http.post('/periods/close'),
       p => `Đã chốt kỳ ${closing}: vốn ${yen(totals.totalCost)}, doanh thu ${yen(totals.totalRevenue)}. Kỳ ${p.label} đã mở.`),
   };

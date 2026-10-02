@@ -1,6 +1,7 @@
 export const NAV = [
   ['dashboard', 'Tổng quan'],
   ['purchases', 'Nhập hàng'],
+  ['rakuma', 'Rakuma'],
   ['sales', 'Bán hàng'],
   ['inventory', 'Tồn kho'],
   ['products', 'Sản phẩm'],

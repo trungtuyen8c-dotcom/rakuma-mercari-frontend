@@ -61,6 +61,6 @@ export function computeStore(s) {
     openPeriod: open, prevPeriod: closed[closed.length - 1] || null, nextLabel: nextLabel(open.label), periods: s.periods,
     products, activeProducts: products.filter(p => p.active), purchases, sales,
     inventory: cur.inventory, negatives: cur.negatives, totals: cur.totals, statsFor,
-    settings: s.settings, user: s.user, apiKeys: s.apiKeys,
+    settings: s.settings, user: s.user, apiKeys: s.apiKeys, rakuma: s.rakuma || [],
   };
 }

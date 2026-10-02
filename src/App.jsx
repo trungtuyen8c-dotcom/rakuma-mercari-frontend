@@ -11,8 +11,9 @@ import Products from './features/products/Products';
 import Analysis from './features/analysis/Analysis';
 import Periods from './features/periods/Periods';
 import Settings from './features/settings/Settings';
+import Rakuma from './features/rakuma/Rakuma';
 
-const SCREENS = { dashboard: Dashboard, purchases: Purchases, sales: Sales, inventory: Inventory, products: Products, analysis: Analysis, periods: Periods, settings: Settings };
+const SCREENS = { dashboard: Dashboard, purchases: Purchases, sales: Sales, inventory: Inventory, products: Products, analysis: Analysis, periods: Periods, settings: Settings, rakuma: Rakuma };
 
 export default function App() {
   const { status, store, api, notice } = useApp();
