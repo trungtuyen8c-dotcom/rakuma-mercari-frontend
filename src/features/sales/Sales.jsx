@@ -46,7 +46,7 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
   // Current stock hint as soon as a product is picked (BR-09)
   const inv = form.productId ? store.inventory.find(i => i.productId === form.productId) : null;
   const qty = Number(form.qty), price = Number(form.price), ship = form.ship === '' ? 0 : Number(form.ship);
-  const valid = form.qty !== '' && form.price !== '' && qty >= 1 && price > 0 && ship >= 0;
+  const valid = form.qty !== '' && form.price !== '' && qty >= 1 && price >= 0 && ship >= 0;
   const short = inv && valid && inv.current - qty < 0;
 
   return (
@@ -74,8 +74,8 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
             <Field id="sale-qty" label="Số lượng bán *" error={errors.qty}>
               <input {...invalidProps('sale-qty', errors.qty)} type="number" inputMode="numeric" min="1" step="1" className="input" value={form.qty} onChange={on('qty')} />
             </Field>
-            <Field id="sale-price" label="Đơn giá mỗi cái (¥) *" error={errors.price}>
-              <input {...invalidProps('sale-price', errors.price)} type="number" inputMode="numeric" min="1" step="1" className="input" value={form.price} onChange={on('price')} />
+            <Field id="sale-price" label="Đơn giá mỗi cái (¥) *" error={errors.price} hint="Nhập 0 nếu là hàng bóc (chỉ trừ tồn kho).">
+              <input {...invalidProps('sale-price', errors.price)} aria-describedby="sale-price-hint sale-price-err" type="number" inputMode="numeric" min="0" step="1" className="input" value={form.price} onChange={on('price')} />
             </Field>
             <Field id="sale-ship" label="Phí ship shop chịu (¥)" error={errors.ship}>
               <input {...invalidProps('sale-ship', errors.ship)} type="number" inputMode="numeric" min="0" step="1" className="input" value={form.ship} onChange={on('ship')} />
