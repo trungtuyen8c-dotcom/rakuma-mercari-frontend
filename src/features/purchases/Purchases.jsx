@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../store/app-store';
 import { useFocusOn } from '../../hooks/use-focus-on';
-import { yen, fmtDate, shortUrl, periodStatusText } from '../../utils/format';
+import { yen, fmtDate, siteLabel, periodStatusText } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField, { targetPeriod } from '../../components/PeriodField';
@@ -163,21 +163,19 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
           <p className="note">{`Kỳ ${period.label} đã chốt ngày ${fmtDate(period.closedAt)}. Dữ liệu chỉ xem, không thể sửa.`}</p>
         )}
         <div role="region" aria-label="Bảng nhập hàng" tabIndex={0} className="table-wrap">
-          <table className="table table--hover table--nowrap-head" style={{ minWidth: 1120 }}>
+          {/* Compact layout: fits the 1200px page without sideways scrolling; narrower screens still scroll */}
+          <table className="table table--hover table--nowrap-head table--dense" style={{ minWidth: 760 }}>
             <thead>
               <tr>
                 <th scope="col" className="r">STT</th>
-                <th scope="col">Ngày đặt</th>
-                <th scope="col">Nguồn</th>
+                <th scope="col">Ngày</th>
                 <th scope="col">Sản phẩm</th>
-                <th scope="col" className="r">Giá nhập</th>
-                <th scope="col" className="r">SL</th>
-                <th scope="col" className="r">Giảm giá</th>
-                <th scope="col" className="r">Tổng tiền</th>
+                <th scope="col" className="r">Giá × SL</th>
+                <th scope="col" className="r">Tổng</th>
                 <th scope="col">Link</th>
-                <th scope="col">Mã vận đơn</th>
-                <th scope="col" className="c">Đã kiểm</th>
-                <th scope="col" className="c">Đã đánh giá</th>
+                <th scope="col">Vận đơn</th>
+                <th scope="col" className="c" title="Đã kiểm hàng">Kiểm</th>
+                <th scope="col" className="c" title="Đã đánh giá người bán">Đ.giá</th>
                 <th scope="col" className="r"><span className="sr-only">Thao tác</span></th>
               </tr>
             </thead>
@@ -185,22 +183,26 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
               {rows.map(r => (
                 <tr key={r.id}>
                   <td className="r dim nw">{allPeriods ? `${r.periodLabel} · ${r.stt}` : r.stt}</td>
-                  <td className="nw">{fmtDate(r.date)}</td>
-                  <td className="nw">{r.source === 'BULK' ? 'Lô lớn' : 'Thường'}</td>
-                  <td className="b">{r.productName}</td>
-                  <td className="r nw">{yen(r.price)}</td>
-                  <td className="r">{r.qty}</td>
-                  <td className="r nw">{r.discount ? yen(r.discount) : '—'}</td>
+                  <td className="nw dim">{r.date ? fmtDate(r.date).slice(0, 5) : '—'}</td>
+                  <td>
+                    <span className="b">{r.productName}</span>
+                    {r.source === 'BULK' && <span className="cell-sub">Lô lớn</span>}
+                    {r.note && <span className="cell-sub" title={r.note}>{r.note}</span>}
+                  </td>
+                  <td className="r nw">
+                    {yen(r.price)} × {r.qty}
+                    {r.discount > 0 && <span className="cell-sub">−{yen(r.discount)}/cái</span>}
+                  </td>
                   <td className="r nw b">{yen(r.total)}</td>
                   <td className={'nw' + (r.dupLink ? ' cell-dup' : '')}>
                     {r.link
-                      ? <a href={r.link} target="_blank" rel="noopener noreferrer" style={r.dupLink ? { color: 'var(--c-danger)' } : undefined}>{shortUrl(r.link)}</a>
+                      ? <a href={r.link} target="_blank" rel="noopener noreferrer" title={r.link} style={r.dupLink ? { color: 'var(--c-danger)' } : undefined}>{siteLabel(r.link)} ↗</a>
                       : <span className="dim">—</span>}
-                    {r.dupLink && <span className="b neg"> · trùng</span>}
+                    {r.dupLink && <span className="cell-sub b neg">trùng</span>}
                   </td>
-                  <td className={'nw' + (r.dupTracking ? ' cell-dup' : '')}>
+                  <td className={'nw mono-sm' + (r.dupTracking ? ' cell-dup' : '')}>
                     {r.tracking || '—'}
-                    <span className="b">{r.dupTracking ? ' · trùng' : r.merged ? ' · gộp' : ''}</span>
+                    {(r.dupTracking || r.merged) && <span className="cell-sub b">{r.dupTracking ? 'trùng' : 'gộp'}</span>}
                   </td>
                   <td className="c">
                     <input type="checkbox" className="checkbox" checked={r.checked} onChange={() => api.togglePurchase(r.id, 'checked', !r.checked)} aria-label={`Đã kiểm hàng dòng ${r.stt} (${r.productName})`} />
@@ -208,9 +210,9 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
                   <td className="c">
                     <input type="checkbox" className="checkbox" checked={r.reviewed} onChange={() => api.togglePurchase(r.id, 'reviewed', !r.reviewed)} aria-label={`Đã đánh giá người bán dòng ${r.stt} (${r.productName})`} />
                   </td>
-                  <td className="act">
-                    <button type="button" className="btn-link" onClick={() => startEdit(r)} aria-label={`Sửa dòng ${r.stt} (${r.productName})`}>Sửa</button>
-                    <button type="button" className="btn-link btn-link--danger" onClick={() => remove(r)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
+                  <td className="act nw">
+                    <button type="button" className="btn-link btn-link--tight" onClick={() => startEdit(r)} aria-label={`Sửa dòng ${r.stt} (${r.productName})`}>Sửa</button>
+                    <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => remove(r)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
                   </td>
                 </tr>
               ))}

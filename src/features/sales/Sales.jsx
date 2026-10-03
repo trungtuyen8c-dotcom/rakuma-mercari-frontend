@@ -135,7 +135,7 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
         </div>
         {period.status === 'CLOSED' && <p className="note">{`Kỳ ${period.label} đã chốt. Dữ liệu chỉ xem, không thể sửa.`}</p>}
         <div role="region" aria-label="Bảng bán hàng" tabIndex={0} className="table-wrap">
-          <table className="table table--hover table--nowrap-head" style={{ minWidth: 880 }}>
+          <table className="table table--hover table--nowrap-head table--dense" style={{ minWidth: 720 }}>
             <thead>
               <tr>
                 <th scope="col" className="r">STT</th>
@@ -162,9 +162,9 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
                   <td className="r nw b">{yen(r.total)}</td>
                   <td>{r.customer || '—'}</td>
                   <td className="dim">{r.note || '—'}</td>
-                  <td className="act">
-                    <button type="button" className="btn-link" onClick={() => startEdit(r)} aria-label={`Sửa đơn bán ${r.stt} (${r.productName})`}>Sửa</button>
-                    <button type="button" className="btn-link btn-link--danger" onClick={() => remove(r)} aria-label={`Xóa đơn bán ${r.stt} (${r.productName})`}>Xóa</button>
+                  <td className="act nw">
+                    <button type="button" className="btn-link btn-link--tight" onClick={() => startEdit(r)} aria-label={`Sửa đơn bán ${r.stt} (${r.productName})`}>Sửa</button>
+                    <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => remove(r)} aria-label={`Xóa đơn bán ${r.stt} (${r.productName})`}>Xóa</button>
                   </td>
                 </tr>
               ))}
