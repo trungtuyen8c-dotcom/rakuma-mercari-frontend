@@ -13,11 +13,19 @@ export default function Analysis() {
   const soldQty = sales.reduce((a, r) => a + r.qty, 0), soldAmt = sales.reduce((a, r) => a + r.total, 0);
   const inQty = purs.reduce((a, r) => a + r.qty, 0), inAmt = purs.reduce((a, r) => a + r.total, 0);
 
-  // BR-15 LIFO: walk from the newest purchase back until the sold quantity is covered; the last lot is taken partially
+  // BR-15 FIFO (owner decision 2026-10-04): oldest purchase first, by order date, else by period then STT;
+  // walk until the sold quantity is covered, the last lot taken partially
+  const start = {};
+  store.periods.forEach(p => { start[p.id] = p.start; });
+  const age = r => [r.date || start[r.periodId], start[r.periodId], r.stt];
+  const fifo = [...purs].sort((x, y) => {
+    const a = age(x), b = age(y);
+    return a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]) || a[2] - b[2];
+  });
   let need = soldQty, cogs = 0;
   const lots = [];
-  for (let i = purs.length - 1; i >= 0 && need > 0; i--) {
-    const r = purs[i], take = Math.min(need, r.qty), unit = r.price - (r.discount || 0);
+  for (let i = 0; i < fifo.length && need > 0; i++) {
+    const r = fifo[i], take = Math.min(need, r.qty), unit = r.price - (r.discount || 0);
     cogs += take * unit;
     need -= take;
     lots.push({ id: r.id, date: r.date, ref: `${r.periodLabel} · ${r.stt}`, unit, qty: r.qty, take, cost: take * unit });
@@ -40,7 +48,7 @@ export default function Analysis() {
             {store.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
-        <p className="caption" style={{ maxWidth: 520 }}>Tính trên toàn bộ dữ liệu mọi kỳ. Giá vốn lấy từ các lần nhập gần nhất trước (LIFO), lô cuối chỉ lấy phần cần dùng.</p>
+        <p className="caption" style={{ maxWidth: 520 }}>Tính trên toàn bộ dữ liệu mọi kỳ. Giá vốn lấy từ các lần nhập cũ nhất trước (FIFO), lô cuối chỉ lấy phần cần dùng.</p>
       </div>
 
       <dl className="an-metrics">
