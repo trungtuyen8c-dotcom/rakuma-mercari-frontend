@@ -12,6 +12,14 @@ export const fmtDate = (d, empty = '—') => {
   return `${day}/${m}/${y}`;
 };
 
+// Which marketplace a link points to, as a short label for narrow tables.
+export const siteLabel = u => {
+  const host = u.replace(/^https?:\/\//, '').split('/')[0];
+  if (host.includes('fril.jp')) return 'Rakuma';
+  if (host.includes('mercari')) return 'Mercari';
+  return host.replace(/^www\./, '');
+};
+
 export const shortUrl = u => {
   const t = u.replace(/^https?:\/\//, '');
   return t.length > 30 ? t.slice(0, 29) + '…' : t;

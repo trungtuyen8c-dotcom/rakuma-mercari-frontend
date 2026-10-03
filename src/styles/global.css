@@ -192,6 +192,14 @@ select.pill { cursor: pointer; }
 .table .neg { color: var(--c-danger); }
 .table .mono { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
 .table .faded { color: var(--c-ink-muted-48); }
+/* Dense tables (Nhập hàng, Bán hàng): tighter cells and a second line for secondary facts instead of extra columns */
+.table--dense th { padding: 10px 8px; }
+.table--dense td { padding: 8px; vertical-align: top; }
+.table--dense td:first-child, .table--dense th:first-child { padding-left: 14px; }
+.table--dense td:last-child, .table--dense th:last-child { padding-right: 14px; }
+.table--dense td.act { padding-top: 4px; padding-bottom: 4px; }
+.table .cell-sub { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; line-height: 1.33; color: var(--c-ink-muted-80); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table .mono-sm { font-variant-numeric: tabular-nums; font-size: 13px; }
 .table-actions { display: flex; justify-content: flex-end; gap: var(--s-xxs); }
 .sort-btn {
   min-height: 40px;
