@@ -32,5 +32,6 @@
 .rk-steps { display: flex; flex-wrap: wrap; gap: var(--s-xxs); margin: 0; }
 .rk-step { padding: 2px 10px; border-radius: var(--r-pill); border: 1px solid var(--c-hairline); font-size: 12px; line-height: 18px; color: var(--c-ink-muted-80); }
 .rk-step--on { border-color: var(--c-ink-muted-48); color: var(--c-ink); }
+.rk-step--dup { border-color: var(--c-danger); background: var(--c-danger-bg); color: var(--c-danger); font-weight: 600; }
 .rk-step--done { border-color: var(--c-primary); color: var(--c-primary); font-weight: 600; }
 .rk-card > .btn-link { align-self: flex-start; }
