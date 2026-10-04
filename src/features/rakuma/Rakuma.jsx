@@ -142,9 +142,20 @@ function OrderCard({ order, collapsed }) {
   );
 }
 
+// BR-05/06: a queued order whose link or tracking number is already on a purchase row was probably entered by hand;
+// an approved one shows its row's own duplicate flags (merged shipments are not flagged). null = no duplicate.
+const duplicates = (o, purchases, purchase) => {
+  if (purchase) return { link: purchase.dupLink ? [] : null, tracking: purchase.dupTracking ? [] : null };
+  const rows = pred => { const f = purchases.filter(pred); return f.length ? f : null; };
+  return { link: rows(r => r.link === o.link), tracking: o.tracking ? rows(r => r.tracking === o.tracking) : null };
+};
+
+const rowRefs = rows => rows.length ? ` (dòng ${rows.map(r => `${r.stt} kỳ ${r.periodLabel}`).join(', ')})` : '';
+
 function OrderHead({ order }) {
   const { store } = useApp();
   const g = progress(order, store.purchases);
+  const dup = duplicates(order, store.purchases, g.purchase);
   return (
     <div className="rk-head">
       {order.image
@@ -152,10 +163,16 @@ function OrderHead({ order }) {
         : <div className="rk-thumb" aria-hidden="true" />}
       <div className="rk-head-text">
         <h3 className="rk-title">
-          <a href={order.link} target="_blank" rel="noopener noreferrer">{order.title}</a>
+          <a href={order.link} target="_blank" rel="noopener noreferrer">{order.title || 'Chưa đọc được tên món'}</a>
         </h3>
+        {(dup.link || dup.tracking) && (
+          <p className="rk-steps">
+            {dup.link && <span className="rk-step rk-step--dup">Trùng link{rowRefs(dup.link)}</span>}
+            {dup.tracking && <span className="rk-step rk-step--dup">Trùng vận đơn{rowRefs(dup.tracking)}</span>}
+          </p>
+        )}
         <p className="caption">
-          {order.status || '—'} · Đặt {fmtDate(order.date)} · {yen(order.price)}
+          {order.status || '—'} · Đặt {fmtDate(order.date)} · {order.price ? yen(order.price) : 'Chưa đọc được giá'}
           {order.discount > 0 && ` − ${yen(order.discount)} coupon`}
         </p>
         <p className="caption">
@@ -283,8 +300,8 @@ function Thread({ order }) {
 const inOpen = (date, opens) => !!date && opens.some(p => date >= p.start && date <= p.end);
 
 const initial = (o, opens) => ({
-  periodId: '', productId: '', source: 'REGULAR', qty: '1', price: String(o.price), discount: o.discount ? String(o.discount) : '',
-  date: inOpen(o.date, opens) ? o.date : '', note: `Rakuma ${o.orderNo} · ${o.title}`,
+  periodId: '', productId: '', source: 'REGULAR', qty: '1', price: o.price ? String(o.price) : '', discount: o.discount ? String(o.discount) : '',
+  date: inOpen(o.date, opens) ? o.date : '', note: o.title ? `Rakuma ${o.orderNo} · ${o.title}` : `Rakuma ${o.orderNo}`,
 });
 
 function ApproveForm({ order }) {
@@ -300,7 +317,7 @@ function ApproveForm({ order }) {
   const onQty = e => {
     const q = Number(e.target.value);
     const patch = { qty: e.target.value };
-    if (q >= 1 && Number.isInteger(q) && order.price % q === 0) {
+    if (q >= 1 && Number.isInteger(q) && order.price > 0 && order.price % q === 0) {
       patch.price = String(order.price / q);
       patch.discount = order.discount ? String(Math.floor(order.discount / q)) : '';
     }
@@ -356,7 +373,7 @@ function ApproveForm({ order }) {
       <div className="form-foot">
         <p aria-live="polite" className="form-total">
           Tổng tiền: <strong>{valid ? yen(total) : '—'}</strong>
-          {valid && total !== paid && <span className="text-danger"> · khác số đã trả trên Rakuma {yen(paid)}</span>}
+          {valid && order.price > 0 && total !== paid && <span className="text-danger"> · khác số đã trả trên Rakuma {yen(paid)}</span>}
         </p>
         <div className="row-wrap">
           <button type="button" className="btn-secondary" onClick={() => api.dismissRakuma(order.id, true)}>Bỏ qua</button>
