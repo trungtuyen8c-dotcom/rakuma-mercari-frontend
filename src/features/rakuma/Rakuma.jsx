@@ -10,7 +10,11 @@ export const RATINGS = [['', 'Chưa đánh giá'], ['GOOD', 'Tốt'], ['NORMAL',
 
 const queued = o => !o.purchaseId && !o.dismissed;
 const pendingReplies = o => o.replies.filter(r => r.status === 'PENDING').length;
-export const needsAttention = o => !!o.issueNote || o.newMessages > 0 || queued(o);
+// Unfinished order that no longer appears in the Rakuma purchase lists (cancelled, payment expired): check it on Rakuma
+const missing = o => !!o.missingSince;
+const unpaid = o => o.status.startsWith('支払い');
+const problem = o => !!o.issueNote || missing(o);
+export const needsAttention = o => problem(o) || o.newMessages > 0 || queued(o);
 
 // Orders arrive from Claude's Rakuma sync (POST /rakuma/sync). The owner reads seller messages, writes replies in
 // Vietnamese (Claude translates and posts them on the next sync), tracks problems, and turns queued orders into purchases.
@@ -25,6 +29,8 @@ const FILTERS = [
   ['unreceived', 'Chưa kiểm hàng'],
   ['unrated', 'Chưa đánh giá'],
   ['issue', 'Có vấn đề'],
+  ['missing', 'Mất khỏi Rakuma'],
+  ['unpaid', 'Chưa thanh toán'],
   ['queue', 'Chờ duyệt'],
   ['done', 'Hoàn tất'],
   ['closed', 'Chat đã đóng'],
@@ -36,6 +42,8 @@ const matchFilter = (o, f, purchases) => {
     case 'unreceived': return !!o.purchaseId && !g.received;
     case 'unrated': return !o.dismissed && !g.rated;
     case 'issue': return !!o.issueNote;
+    case 'missing': return missing(o);
+    case 'unpaid': return unpaid(o);
     case 'queue': return queued(o);
     case 'done': return g.done;
     case 'closed': return !o.chatOpen;
@@ -55,9 +63,9 @@ export default function Rakuma() {
   const filtering = filter !== 'all' || q !== '';
   const orders = store.rakuma;
   const found = filtering ? orders.filter(o => matchFilter(o, filter, store.purchases) && matchText(o, q)) : [];
-  const issues = orders.filter(o => o.issueNote);
-  const chats = orders.filter(o => !o.issueNote && (o.newMessages > 0 || pendingReplies(o) > 0));
-  const queue = orders.filter(o => !o.issueNote && !chats.includes(o) && queued(o));
+  const issues = orders.filter(problem);
+  const chats = orders.filter(o => !problem(o) && (o.newMessages > 0 || pendingReplies(o) > 0));
+  const queue = orders.filter(o => !problem(o) && !chats.includes(o) && queued(o));
   const others = orders.filter(o => !issues.includes(o) && !chats.includes(o) && !queue.includes(o));
   const lastSync = orders.reduce((a, o) => (o.syncedAt > a ? o.syncedAt : a), '');
 
@@ -121,7 +129,7 @@ export default function Rakuma() {
 
 function OrderCard({ order, collapsed }) {
   const [open, setOpen] = useState(!collapsed);
-  const cls = 'card rk-card' + (order.issueNote ? ' rk-card--issue' : '');
+  const cls = 'card rk-card' + (problem(order) ? ' rk-card--issue' : '');
   return (
     <article className={cls} aria-label={`Đơn Rakuma ${order.orderNo}`}>
       <OrderHead order={order} />
@@ -165,8 +173,10 @@ function OrderHead({ order }) {
         <h3 className="rk-title">
           <a href={order.link} target="_blank" rel="noopener noreferrer">{order.title || 'Chưa đọc được tên món'}</a>
         </h3>
-        {(dup.link || dup.tracking) && (
+        {(dup.link || dup.tracking || missing(order) || unpaid(order)) && (
           <p className="rk-steps">
+            {missing(order) && <span className="rk-step rk-step--dup">Không còn trên Rakuma từ {order.missingSince}, kiểm tra xem bị huỷ hay hết hạn</span>}
+            {unpaid(order) && <span className="rk-step rk-step--dup">Chưa thanh toán</span>}
             {dup.link && <span className="rk-step rk-step--dup">Trùng link{rowRefs(dup.link)}</span>}
             {dup.tracking && <span className="rk-step rk-step--dup">Trùng vận đơn{rowRefs(dup.tracking)}</span>}
           </p>
