@@ -5,6 +5,7 @@ import { yen, fmtDate, siteLabel, periodStatusText } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField, { targetPeriod } from '../../components/PeriodField';
+import SplitForm from './SplitForm';
 
 const blank = keep => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '' });
 
@@ -12,6 +13,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   const { store, api } = useApp();
   const [form, setForm] = useState(blank);
   const [editing, setEditing] = useState(null); // the row being edited, or null when adding
+  const [splitting, setSplitting] = useState(null); // the combined-order row being split into products
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
   const [filter, setFilter] = useState({ period: '', source: 'all', product: 'all', status: 'all', q: '' });
@@ -42,7 +44,12 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     setForm({ periodId: r.periodId, productId: r.noProduct ? '' : r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
       discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note });
-    setEditing(r); setErrors({}); setWarnings([]);
+    setEditing(r); setSplitting(null); setErrors({}); setWarnings([]);
+    window.scrollTo(0, 0);
+  }, []);
+  const startSplit = useCallback(r => {
+    if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Tách sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
+    setSplitting(r); setEditing(null);
     window.scrollTo(0, 0);
   }, []);
   const remove = useCallback(r => {
@@ -74,6 +81,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 
   return (
     <section aria-label="Nhập hàng" className="page">
+      {splitting && <SplitForm key={splitting.id} row={splitting} store={store} api={api} onClose={() => setSplitting(null)} />}
       {formOpen && (
         <form onSubmit={e => { e.preventDefault(); save(false); }} noValidate aria-labelledby="pur-form-h" className="card card--lg">
           <div className="form-head">
@@ -165,7 +173,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
         {!allPeriods && period.status === 'CLOSED' && (
           <p className="note">{`Kỳ ${period.label} đã chốt ngày ${fmtDate(period.closedAt)}. Dữ liệu chỉ xem, không thể sửa.`}</p>
         )}
-        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} onEdit={startEdit} onRemove={remove} />
+        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} onEdit={startEdit} onSplit={startSplit} onRemove={remove} />
         {rows.length === 0 && <p className="caption">Không có dòng nào khớp bộ lọc.</p>}
       </div>
     </section>
@@ -173,7 +181,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 }
 
 // Memoized so typing in the form above does not re-render every row (2,000+ rows with "Tất cả kỳ")
-const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdit, onRemove }) {
+const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdit, onSplit, onRemove }) {
   return (
     <div role="region" aria-label="Bảng nhập hàng" tabIndex={0} className="table-wrap">
       {/* Compact layout: fits the 1200px page without sideways scrolling; narrower screens still scroll */}
@@ -225,6 +233,7 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
               </td>
               <td className="act nw">
                 <button type="button" className="btn-link btn-link--tight" onClick={() => onEdit(r)} aria-label={`Sửa dòng ${r.stt} (${r.productName})`}>Sửa</button>
+                {r.link && <button type="button" className="btn-link btn-link--tight" onClick={() => onSplit(r)} aria-label={`Tách đơn gộp dòng ${r.stt} (${r.productName})`}>Tách</button>}
                 <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => onRemove(r)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
               </td>
             </tr>

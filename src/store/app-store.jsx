@@ -49,6 +49,7 @@ function buildApi(reload, notify, setSignedOut) {
 
     addPurchase: async (d, f) => result(await http.post('/purchases' + force(f), d), r => `Đã thêm dòng nhập “${r.productName}”: ${yen(r.total)}.`),
     updatePurchase: async (id, d, f) => result(await http.put('/purchases/' + id + force(f), d), r => `Đã sửa dòng nhập “${r.productName}”: ${yen(r.total)}.`),
+    splitPurchase: async (id, lines) => result(await http.post('/purchases/' + id + '/split', { lines }), r => `Đã tách thành ${r.length} dòng nhập.`),
     deletePurchase: async id => act(await http.del('/purchases/' + id), 'Đã xóa dòng nhập.'),
     togglePurchase: async (id, field, value) => act(await http.patch('/purchases/' + id, { [field]: value })),
 

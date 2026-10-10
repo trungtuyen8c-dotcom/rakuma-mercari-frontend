@@ -231,3 +231,13 @@ select.pill { cursor: pointer; }
 .cell-input[aria-invalid="true"] { border-color: var(--c-danger); }
 /* Wide tables scroll inside .table-wrap; stop them from stretching their flex parents past the viewport. */
 .page > *, .stack-md > *, .card > * { min-width: 0; }
+
+/* Split a combined order: product, qty, price, line total, remove */
+.split-lines { display: grid; gap: var(--s-sm); justify-items: start; }
+.split-line { display: grid; grid-template-columns: minmax(0, 2fr) 80px minmax(0, 1fr) 96px 40px; gap: var(--s-sm); align-items: center; width: 100%; }
+.split-total { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.split-err { grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .split-line { grid-template-columns: 1fr 72px; }
+  .split-line select { grid-column: 1 / -1; }
+}
