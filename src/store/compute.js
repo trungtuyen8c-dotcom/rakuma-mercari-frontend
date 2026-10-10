@@ -46,7 +46,8 @@ export function computeStore(s) {
   const purchases = s.purchases.map(r => {
     const g = r.tracking ? tracks[r.tracking] : [];
     return {
-      ...r, stt: stt('p', r), productName: (prodById[r.productId] || {}).name || '—', total: r.total ?? purTotal(r),
+      ...r, stt: stt('p', r), productName: (prodById[r.productId] || {}).name || 'Chưa có tên', total: r.total ?? purTotal(r),
+      noProduct: !prodById[r.productId], // written by the Rakuma sync before the product was known
       dupLink: !!r.link && links[r.link].length > 1, // BR-05
       dupTracking: g.length > 1 && !g.every(x => x.merged), // BR-06: merged shipments are not flagged
       locked: perById[r.periodId].status === 'CLOSED', periodLabel: perById[r.periodId].label,

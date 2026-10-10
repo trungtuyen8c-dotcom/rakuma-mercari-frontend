@@ -40,7 +40,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   // Any row is editable, closed months too; the totals of later months are recomputed from the rows
   const startEdit = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
-    setForm({ periodId: r.periodId, productId: r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
+    setForm({ periodId: r.periodId, productId: r.noProduct ? '' : r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
       discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note });
     setEditing(r); setErrors({}); setWarnings([]);
     window.scrollTo(0, 0);
@@ -59,7 +59,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
     return store.purchases.filter(r => (allPeriods || r.periodId === period.id)
       && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
       && (filter.source === 'all' || r.source === filter.source)
-      && (filter.product === 'all' || r.productId === filter.product)
+      && (filter.product === 'all' || (filter.product === 'none' ? r.noProduct : r.productId === filter.product))
       && (filter.status === 'all'
         || (filter.status === 'unchecked' && !r.checked)
         || (filter.status === 'unreviewed' && !r.reviewed)
@@ -82,9 +82,9 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
           </div>
           <div className="form-grid">
             {!editing && <PeriodField id="pur-period" store={store} value={form.periodId} onChange={on('periodId')} error={errors.periodId} />}
-            <Field id="pur-product" label="Sản phẩm *" error={errors.productId}>
+            <Field id="pur-product" label={editing?.noProduct ? 'Sản phẩm' : 'Sản phẩm *'} error={errors.productId}>
               <select {...invalidProps('pur-product', errors.productId)} ref={firstRef} className="input" value={form.productId} onChange={on('productId')}>
-                <option value="">Chọn sản phẩm</option>
+                <option value="">{editing?.noProduct ? 'Chưa có tên (chọn sau)' : 'Chọn sản phẩm'}</option>
                 {store.activeProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </Field>
@@ -127,7 +127,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <p aria-live="polite" className="form-total">Tổng tiền: <strong>{valid ? yen((price - disc) * qty) : '—'}</strong></p>
             <div className="row-wrap">
               <button type="button" className="btn-secondary" onClick={cancel}>Đóng</button>
-              <button type="submit" className="btn-primary" disabled={!form.productId || form.price === '' || form.qty === ''}>{editing ? 'Lưu thay đổi' : 'Lưu dòng nhập'}</button>
+              <button type="submit" className="btn-primary" disabled={(!form.productId && !editing?.noProduct) || form.price === '' || form.qty === ''}>{editing ? 'Lưu thay đổi' : 'Lưu dòng nhập'}</button>
             </div>
           </div>
         </form>
@@ -147,6 +147,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
           </select>
           <select aria-label="Sản phẩm" className="pill" value={filter.product} onChange={setF('product')}>
             <option value="all">Tất cả sản phẩm</option>
+            <option value="none">Chưa có tên</option>
             {store.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <select aria-label="Trạng thái" className="pill" value={filter.status} onChange={setF('status')}>
@@ -197,7 +198,7 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
               <td className="r dim nw">{allPeriods ? `${r.periodLabel} · ${r.stt}` : r.stt}</td>
               <td className="nw dim">{r.date ? fmtDate(r.date).slice(0, 5) : '—'}</td>
               <td>
-                <span className="b">{r.productName}</span>
+                {r.noProduct ? <span className="b text-danger">Chưa có tên</span> : <span className="b">{r.productName}</span>}
                 {r.source === 'BULK' && <span className="cell-sub">Lô lớn</span>}
                 {r.note && <span className="cell-sub" title={r.note}>{r.note}</span>}
               </td>

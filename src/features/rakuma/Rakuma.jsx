@@ -113,6 +113,7 @@ export default function Rakuma() {
 
       <div className="stack-md">
         <h2 className="h-tile">Chờ duyệt <span className="muted">· {queue.length}</span></h2>
+        <p className="caption">Đơn đã thanh toán tự vào Nhập hàng khi đồng bộ (tên chưa rõ thì để trống). Ở đây chỉ còn đơn chưa thanh toán hoặc không tự nhập được.</p>
         {queue.length === 0 && <p className="caption">Không có đơn nào chờ duyệt.</p>}
         {queue.map(o => <OrderCard key={o.id} order={o} />)}
       </div>
