@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useApp } from './store/app-store';
+import { useApp, useNotice } from './store/app-store';
 import { NAV, CTA, readHash } from './routes/nav';
 import AppHeader from './components/AppHeader';
 import SignIn from './features/auth/SignIn';
@@ -16,7 +16,7 @@ import Rakuma, { needsAttention } from './features/rakuma/Rakuma';
 const SCREENS = { dashboard: Dashboard, purchases: Purchases, sales: Sales, inventory: Inventory, products: Products, analysis: Analysis, periods: Periods, settings: Settings, rakuma: Rakuma };
 
 export default function App() {
-  const { status, store, api, notice } = useApp();
+  const { status, store, api } = useApp();
   const [screen, setScreen] = useState(readHash);
   const [composer, setComposer] = useState({ open: false, seq: 0 });
   const pendingComposer = useRef(false);
@@ -61,7 +61,7 @@ export default function App() {
     <>
       <button type="button" className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Bỏ qua tới nội dung chính</button>
       <AppHeader screen={screen} email={store.user.email} onSignOut={signOut} badges={{ rakuma: store.rakuma.filter(needsAttention).length }} />
-      <div className="subnav">
+      <div className="subnav" role="region" aria-label="Tiêu đề trang">
         <div className="wrap subnav-bar">
           <div className="subnav-title">
             <h1 className="h-tile">{NAV.find(n => n[0] === screen)[1]}</h1>
@@ -70,19 +70,26 @@ export default function App() {
           {cta && <button type="button" className="btn-primary btn-sm" onClick={() => openComposer(cta[0])}>{cta[1]}</button>}
         </div>
       </div>
-      <div role="status" aria-live="polite">
-        {notice && (
-          <div className="notice">
-            <div className="wrap notice-bar">
-              <p>{notice}</p>
-              <button type="button" className="btn-link" onClick={api.dismissNotice} aria-label="Đóng thông báo">Đóng</button>
-            </div>
-          </div>
-        )}
-      </div>
+      <NoticeBar />
       <main id="main" tabIndex={-1} className="main">
         <Screen composerOpen={composer.open} composerSeq={composer.seq} closeComposer={() => setComposer(c => ({ ...c, open: false }))} />
       </main>
     </>
+  );
+}
+
+function NoticeBar() {
+  const { notice, dismiss } = useNotice();
+  return (
+    <div role="status" aria-live="polite">
+      {notice && (
+        <div className="notice">
+          <div className="wrap notice-bar">
+            <p>{notice}</p>
+            <button type="button" className="btn-link" onClick={dismiss} aria-label="Đóng thông báo">Đóng</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
