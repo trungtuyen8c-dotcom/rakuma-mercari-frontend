@@ -4,6 +4,8 @@ import { api as http } from '../services/api';
 import { yen, fmtDate } from '../utils/format';
 
 const AppContext = createContext(null);
+// Separate so the 7-second notice bar does not re-render every screen when it appears and clears
+const NoticeContext = createContext({ notice: '', dismiss: () => {} });
 
 // The server validates every write and is the source of truth (BR-xx, E-xx).
 // The UI loads all rows once (GET /state), derives its views in compute.js, and reloads after each write.
@@ -108,8 +110,13 @@ export function AppProvider({ children }) {
   const [notice, setNotice] = useState('');
   const timer = useRef(null);
 
+  const loadSeq = useRef(0);
+
   const reload = useCallback(async () => {
+    // Two quick writes start two reloads; only the newest response may replace the data
+    const seq = ++loadSeq.current;
     const res = await http.get('/state');
+    if (seq !== loadSeq.current) return;
     if (res.ok) { setData(res.data); setStatus('ready'); }
     else if (res.status === 401 || res.status === 403) { setData(null); setStatus('signedOut'); }
     else setStatus(s => (s === 'ready' ? s : 'error'));
@@ -128,8 +135,14 @@ export function AppProvider({ children }) {
   useEffect(() => { reload(); return () => clearTimeout(timer.current); }, [reload]);
 
   const store = useMemo(() => (data ? computeStore(data) : null), [data]);
-  const value = useMemo(() => ({ status, store, api, notice }), [status, store, api, notice]);
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  const value = useMemo(() => ({ status, store, api }), [status, store, api]);
+  const noticeValue = useMemo(() => ({ notice, dismiss: api.dismissNotice }), [notice, api]);
+  return (
+    <AppContext.Provider value={value}>
+      <NoticeContext.Provider value={noticeValue}>{children}</NoticeContext.Provider>
+    </AppContext.Provider>
+  );
 }
 
 export const useApp = () => useContext(AppContext);
+export const useNotice = () => useContext(NoticeContext);

@@ -52,6 +52,13 @@ export function computeStore(s) {
       locked: perById[r.periodId].status === 'CLOSED', periodLabel: perById[r.periodId].label,
     };
   });
+  // Lookups for the Rakuma screen, which checks every order against the purchase rows
+  const purchaseIndex = { byId: {}, byLink: {}, byTracking: {} };
+  purchases.forEach(r => {
+    purchaseIndex.byId[r.id] = r;
+    if (r.link) (purchaseIndex.byLink[r.link] = purchaseIndex.byLink[r.link] || []).push(r);
+    if (r.tracking) (purchaseIndex.byTracking[r.tracking] = purchaseIndex.byTracking[r.tracking] || []).push(r);
+  });
   const sales = s.sales.map(r => ({
     ...r, stt: stt('s', r), productName: (prodById[r.productId] || {}).name || '—', total: r.total ?? saleTotal(r),
     locked: perById[r.periodId].status === 'CLOSED', periodLabel: perById[r.periodId].label,
@@ -64,7 +71,7 @@ export function computeStore(s) {
   const products = s.products.map((p, i) => ({ ...p, stt: i + 1, txCount: tx[p.id] || 0 }));
   return {
     openPeriod: open, openPeriods: opens, prevPeriod: closed[closed.length - 1] || null, nextLabel: nextLabel(latest.label), periods: s.periods,
-    products, activeProducts: products.filter(p => p.active), purchases, sales,
+    products, activeProducts: products.filter(p => p.active), purchases, purchaseIndex, sales,
     inventory: cur.inventory, negatives: cur.negatives, totals: cur.totals, statsFor,
     settings: s.settings, user: s.user, apiKeys: s.apiKeys, rakuma: s.rakuma || [],
   };

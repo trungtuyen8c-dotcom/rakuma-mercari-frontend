@@ -13,6 +13,8 @@ body {
 input, select, button, textarea { font-family: inherit; letter-spacing: inherit; }
 a { color: var(--c-primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
+/* Links inside running text need more than color to stand out (WCAG 1.4.1) */
+.link-inline { text-decoration: underline; text-underline-offset: 2px; }
 :focus-visible { outline: 2px solid var(--c-primary-focus); outline-offset: 2px; }
 button { transition: transform 0.12s ease; }
 button:not(:disabled):active { transform: scale(0.95); }

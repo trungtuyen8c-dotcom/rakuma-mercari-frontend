@@ -69,7 +69,7 @@ export default function Dashboard() {
           )}
           <p className="dash-hero-sub" style={{ maxWidth: 720 }}>
             Lợi nhuận đang tính theo dòng tiền: Tổng doanh thu − Tổng vốn. Tiền mua {stockUnits} món {isOpen ? 'còn trong kho' : `tồn cuối tháng ${p.label}`} cũng đã bị trừ.{' '}
-            <a href="#inventory" style={{ color: 'var(--c-primary-on-dark)' }}>Xem tồn kho</a>
+            <a href="#inventory" className="link-inline" style={{ color: 'var(--c-primary-on-dark)' }}>Xem tồn kho</a>
           </p>
         </div>
       </section>

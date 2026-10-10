@@ -19,8 +19,8 @@ export const needsAttention = o => problem(o) || o.newMessages > 0 || queued(o);
 // Orders arrive from Claude's Rakuma sync (POST /rakuma/sync). The owner reads seller messages, writes replies in
 // Vietnamese (Claude translates and posts them on the next sync), tracks problems, and turns queued orders into purchases.
 // Owner's after-purchase steps, as in the Excel sheet: goods arrive OK (purchase "Đã kiểm") -> seller rated -> done.
-export const progress = (o, purchases) => {
-  const p = o.purchaseId ? purchases.find(x => x.id === o.purchaseId) : null;
+export const progress = (o, index) => {
+  const p = o.purchaseId ? index.byId[o.purchaseId] || null : null;
   return { purchase: p, received: !!p?.checked, rated: !!o.rating, done: !!p?.checked && !!o.rating && !o.issueNote };
 };
 
@@ -36,8 +36,8 @@ const FILTERS = [
   ['closed', 'Chat đã đóng'],
 ];
 
-const matchFilter = (o, f, purchases) => {
-  const g = progress(o, purchases);
+const matchFilter = (o, f, index) => {
+  const g = progress(o, index);
   switch (f) {
     case 'unreceived': return !!o.purchaseId && !g.received;
     case 'unrated': return !o.dismissed && !g.rated;
@@ -62,7 +62,7 @@ export default function Rakuma() {
   const q = query.trim().toLowerCase();
   const filtering = filter !== 'all' || q !== '';
   const orders = store.rakuma;
-  const found = filtering ? orders.filter(o => matchFilter(o, filter, store.purchases) && matchText(o, q)) : [];
+  const found = filtering ? orders.filter(o => matchFilter(o, filter, store.purchaseIndex) && matchText(o, q)) : [];
   const issues = orders.filter(problem);
   const chats = orders.filter(o => !problem(o) && (o.newMessages > 0 || pendingReplies(o) > 0));
   const queue = orders.filter(o => !problem(o) && !chats.includes(o) && queued(o));
@@ -152,18 +152,17 @@ function OrderCard({ order, collapsed }) {
 
 // BR-05/06: a queued order whose link or tracking number is already on a purchase row was probably entered by hand;
 // an approved one shows its row's own duplicate flags (merged shipments are not flagged). null = no duplicate.
-const duplicates = (o, purchases, purchase) => {
+const duplicates = (o, index, purchase) => {
   if (purchase) return { link: purchase.dupLink ? [] : null, tracking: purchase.dupTracking ? [] : null };
-  const rows = pred => { const f = purchases.filter(pred); return f.length ? f : null; };
-  return { link: rows(r => r.link === o.link), tracking: o.tracking ? rows(r => r.tracking === o.tracking) : null };
+  return { link: index.byLink[o.link] || null, tracking: o.tracking ? index.byTracking[o.tracking] || null : null };
 };
 
 const rowRefs = rows => rows.length ? ` (dòng ${rows.map(r => `${r.stt} kỳ ${r.periodLabel}`).join(', ')})` : '';
 
 function OrderHead({ order }) {
   const { store } = useApp();
-  const g = progress(order, store.purchases);
-  const dup = duplicates(order, store.purchases, g.purchase);
+  const g = progress(order, store.purchaseIndex);
+  const dup = duplicates(order, store.purchaseIndex, g.purchase);
   return (
     <div className="rk-head">
       {order.image
@@ -210,7 +209,7 @@ function OrderHead({ order }) {
 // Seller rating + the owner's problem note. A non-empty note turns the whole card red and lists it under "Cần xử lý".
 function IssuePanel({ order }) {
   const { store, api } = useApp();
-  const { purchase } = progress(order, store.purchases);
+  const { purchase } = progress(order, store.purchaseIndex);
   const [note, setNote] = useState(order.issueNote);
   useEffect(() => { setNote(order.issueNote); }, [order.issueNote]);
   const id = k => `rk-${order.id}-${k}`;

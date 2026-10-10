@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useApp } from '../../store/app-store';
 import { useFocusOn } from '../../hooks/use-focus-on';
 import { yen, fmtDate, siteLabel, periodStatusText } from '../../utils/format';
@@ -38,32 +38,34 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   };
   const cancel = () => { setForm(blank()); setEditing(null); setErrors({}); setWarnings([]); closeComposer(); };
   // Any row is editable, closed months too; the totals of later months are recomputed from the rows
-  const startEdit = r => {
+  const startEdit = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     setForm({ periodId: r.periodId, productId: r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
       discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note });
     setEditing(r); setErrors({}); setWarnings([]);
     window.scrollTo(0, 0);
-  };
-  const remove = r => {
+  }, []);
+  const remove = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Xóa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     api.deletePurchase(r.id);
-  };
+  }, [api]);
   const formOpen = composerOpen || !!editing;
 
   const allPeriods = filter.period === 'all';
   const period = store.periods.find(p => p.id === (filter.period || store.openPeriod.id)) || store.openPeriod;
-  const q = filter.q.trim().toLowerCase();
-  const match = r => (allPeriods || r.periodId === period.id)
-    && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
-    && (filter.source === 'all' || r.source === filter.source)
-    && (filter.product === 'all' || r.productId === filter.product)
-    && (filter.status === 'all'
-      || (filter.status === 'unchecked' && !r.checked)
-      || (filter.status === 'unreviewed' && !r.reviewed)
-      || (filter.status === 'done' && r.checked && r.reviewed)
-      || (filter.status === 'dup' && (r.dupLink || r.dupTracking)));
-  const rows = store.purchases.filter(match);
+  // Filtering stays out of the form's keystrokes: rows only change with the data or the filters
+  const rows = useMemo(() => {
+    const q = filter.q.trim().toLowerCase();
+    return store.purchases.filter(r => (allPeriods || r.periodId === period.id)
+      && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
+      && (filter.source === 'all' || r.source === filter.source)
+      && (filter.product === 'all' || r.productId === filter.product)
+      && (filter.status === 'all'
+        || (filter.status === 'unchecked' && !r.checked)
+        || (filter.status === 'unreviewed' && !r.reviewed)
+        || (filter.status === 'done' && r.checked && r.reviewed)
+        || (filter.status === 'dup' && (r.dupLink || r.dupTracking))));
+  }, [store.purchases, filter, allPeriods, period.id]);
   const setF = k => e => setFilter(f => ({ ...f, [k]: e.target.value }));
 
   // Preview total per BR-03
@@ -162,65 +164,72 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
         {!allPeriods && period.status === 'CLOSED' && (
           <p className="note">{`Kỳ ${period.label} đã chốt ngày ${fmtDate(period.closedAt)}. Dữ liệu chỉ xem, không thể sửa.`}</p>
         )}
-        <div role="region" aria-label="Bảng nhập hàng" tabIndex={0} className="table-wrap">
-          {/* Compact layout: fits the 1200px page without sideways scrolling; narrower screens still scroll */}
-          <table className="table table--hover table--nowrap-head table--dense" style={{ minWidth: 760 }}>
-            <thead>
-              <tr>
-                <th scope="col" className="r">STT</th>
-                <th scope="col">Ngày</th>
-                <th scope="col">Sản phẩm</th>
-                <th scope="col" className="r">Giá × SL</th>
-                <th scope="col" className="r">Tổng</th>
-                <th scope="col">Link</th>
-                <th scope="col">Vận đơn</th>
-                <th scope="col" className="c" title="Đã kiểm hàng">Kiểm</th>
-                <th scope="col" className="c" title="Đã đánh giá người bán">Đ.giá</th>
-                <th scope="col" className="r"><span className="sr-only">Thao tác</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.id}>
-                  <td className="r dim nw">{allPeriods ? `${r.periodLabel} · ${r.stt}` : r.stt}</td>
-                  <td className="nw dim">{r.date ? fmtDate(r.date).slice(0, 5) : '—'}</td>
-                  <td>
-                    <span className="b">{r.productName}</span>
-                    {r.source === 'BULK' && <span className="cell-sub">Lô lớn</span>}
-                    {r.note && <span className="cell-sub" title={r.note}>{r.note}</span>}
-                  </td>
-                  <td className="r nw">
-                    {yen(r.price)} × {r.qty}
-                    {r.discount > 0 && <span className="cell-sub">−{yen(r.discount)}/cái</span>}
-                  </td>
-                  <td className="r nw b">{yen(r.total)}</td>
-                  <td className={'nw' + (r.dupLink ? ' cell-dup' : '')}>
-                    {r.link
-                      ? <a href={r.link} target="_blank" rel="noopener noreferrer" title={r.link} style={r.dupLink ? { color: 'var(--c-danger)' } : undefined}>{siteLabel(r.link)} ↗</a>
-                      : <span className="dim">—</span>}
-                    {r.dupLink && <span className="cell-sub b neg">trùng</span>}
-                  </td>
-                  <td className={'nw mono-sm' + (r.dupTracking ? ' cell-dup' : '')}>
-                    {r.tracking || '—'}
-                    {(r.dupTracking || r.merged) && <span className="cell-sub b">{r.dupTracking ? 'trùng' : 'gộp'}</span>}
-                  </td>
-                  <td className="c">
-                    <input type="checkbox" className="checkbox" checked={r.checked} onChange={() => api.togglePurchase(r.id, 'checked', !r.checked)} aria-label={`Đã kiểm hàng dòng ${r.stt} (${r.productName})`} />
-                  </td>
-                  <td className="c">
-                    <input type="checkbox" className="checkbox" checked={r.reviewed} onChange={() => api.togglePurchase(r.id, 'reviewed', !r.reviewed)} aria-label={`Đã đánh giá người bán dòng ${r.stt} (${r.productName})`} />
-                  </td>
-                  <td className="act nw">
-                    <button type="button" className="btn-link btn-link--tight" onClick={() => startEdit(r)} aria-label={`Sửa dòng ${r.stt} (${r.productName})`}>Sửa</button>
-                    <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => remove(r)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} onEdit={startEdit} onRemove={remove} />
         {rows.length === 0 && <p className="caption">Không có dòng nào khớp bộ lọc.</p>}
       </div>
     </section>
   );
 }
+
+// Memoized so typing in the form above does not re-render every row (2,000+ rows with "Tất cả kỳ")
+const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdit, onRemove }) {
+  return (
+    <div role="region" aria-label="Bảng nhập hàng" tabIndex={0} className="table-wrap">
+      {/* Compact layout: fits the 1200px page without sideways scrolling; narrower screens still scroll */}
+      <table className="table table--hover table--nowrap-head table--dense" style={{ minWidth: 760 }}>
+        <thead>
+          <tr>
+            <th scope="col" className="r">STT</th>
+            <th scope="col">Ngày</th>
+            <th scope="col">Sản phẩm</th>
+            <th scope="col" className="r">Giá × SL</th>
+            <th scope="col" className="r">Tổng</th>
+            <th scope="col">Link</th>
+            <th scope="col">Vận đơn</th>
+            <th scope="col" className="c" title="Đã kiểm hàng">Kiểm</th>
+            <th scope="col" className="c" title="Đã đánh giá người bán">Đ.giá</th>
+            <th scope="col" className="r"><span className="sr-only">Thao tác</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.id}>
+              <td className="r dim nw">{allPeriods ? `${r.periodLabel} · ${r.stt}` : r.stt}</td>
+              <td className="nw dim">{r.date ? fmtDate(r.date).slice(0, 5) : '—'}</td>
+              <td>
+                <span className="b">{r.productName}</span>
+                {r.source === 'BULK' && <span className="cell-sub">Lô lớn</span>}
+                {r.note && <span className="cell-sub" title={r.note}>{r.note}</span>}
+              </td>
+              <td className="r nw">
+                {yen(r.price)} × {r.qty}
+                {r.discount > 0 && <span className="cell-sub">−{yen(r.discount)}/cái</span>}
+              </td>
+              <td className="r nw b">{yen(r.total)}</td>
+              <td className={'nw' + (r.dupLink ? ' cell-dup' : '')}>
+                {r.link
+                  ? <a href={r.link} target="_blank" rel="noopener noreferrer" title={r.link} style={r.dupLink ? { color: 'var(--c-danger)' } : undefined}>{siteLabel(r.link)} ↗</a>
+                  : <span className="dim">—</span>}
+                {r.dupLink && <span className="cell-sub b neg">trùng</span>}
+              </td>
+              <td className={'nw mono-sm' + (r.dupTracking ? ' cell-dup' : '')}>
+                {r.tracking || '—'}
+                {(r.dupTracking || r.merged) && <span className="cell-sub b">{r.dupTracking ? 'trùng' : 'gộp'}</span>}
+              </td>
+              <td className="c">
+                <input type="checkbox" className="checkbox" checked={r.checked} onChange={() => api.togglePurchase(r.id, 'checked', !r.checked)} aria-label={`Đã kiểm hàng dòng ${r.stt} (${r.productName})`} />
+              </td>
+              <td className="c">
+                <input type="checkbox" className="checkbox" checked={r.reviewed} onChange={() => api.togglePurchase(r.id, 'reviewed', !r.reviewed)} aria-label={`Đã đánh giá người bán dòng ${r.stt} (${r.productName})`} />
+              </td>
+              <td className="act nw">
+                <button type="button" className="btn-link btn-link--tight" onClick={() => onEdit(r)} aria-label={`Sửa dòng ${r.stt} (${r.productName})`}>Sửa</button>
+                <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => onRemove(r)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+});

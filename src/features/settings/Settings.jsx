@@ -186,7 +186,7 @@ export default function Settings() {
       <article aria-labelledby="set-prev-h" className="card">
         <div className="stack-xxs">
           <h2 id="set-prev-h" className="h-tile">Số kỳ trước</h2>
-          <p className="caption">Chỉ xem. Số này do thao tác <a href="#periods">Chốt kỳ</a> sinh ra.</p>
+          <p className="caption">Chỉ xem. Số này do thao tác <a href="#periods" className="link-inline">Chốt kỳ</a> sinh ra.</p>
         </div>
         <dl className="dl-rows">
           <div><dt>Vốn kỳ trước</dt><dd>{yen(t.prevCost)}</dd></div>
