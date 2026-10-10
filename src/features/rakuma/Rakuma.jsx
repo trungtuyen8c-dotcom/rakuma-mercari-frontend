@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useApp } from '../../store/app-store';
 import { yen, fmtDate } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField from '../../components/PeriodField';
 import './rakuma.css';
+import { guessProduct, guessQty, orderGaps } from './guess';
 
 export const RATINGS = [['', 'Chưa đánh giá'], ['GOOD', 'Tốt'], ['NORMAL', 'Bình thường'], ['BAD', 'Không tốt']];
 
@@ -31,6 +32,8 @@ const FILTERS = [
   ['issue', 'Có vấn đề'],
   ['missing', 'Mất khỏi Rakuma'],
   ['unpaid', 'Chưa thanh toán'],
+  ['notracking', 'Đã gửi, chưa có mã vận đơn'],
+  ['noinfo', 'Thiếu tên hoặc giá'],
   ['queue', 'Chờ duyệt'],
   ['done', 'Hoàn tất'],
   ['closed', 'Chat đã đóng'],
@@ -44,6 +47,8 @@ const matchFilter = (o, f, index) => {
     case 'issue': return !!o.issueNote;
     case 'missing': return missing(o);
     case 'unpaid': return unpaid(o);
+    case 'notracking': return orderGaps(o).noTracking;
+    case 'noinfo': { const gap = orderGaps(o); return gap.noTitle || gap.noPrice; }
     case 'queue': return queued(o);
     case 'done': return g.done;
     case 'closed': return !o.chatOpen;
@@ -163,6 +168,7 @@ function OrderHead({ order }) {
   const { store } = useApp();
   const g = progress(order, store.purchaseIndex);
   const dup = duplicates(order, store.purchaseIndex, g.purchase);
+  const gap = orderGaps(order);
   return (
     <div className="rk-head">
       {order.image
@@ -172,8 +178,11 @@ function OrderHead({ order }) {
         <h3 className="rk-title">
           <a href={order.link} target="_blank" rel="noopener noreferrer">{order.title || 'Chưa đọc được tên món'}</a>
         </h3>
-        {(dup.link || dup.tracking || missing(order) || unpaid(order)) && (
+        {(dup.link || dup.tracking || missing(order) || unpaid(order) || gap.noTitle || gap.noPrice || gap.noTracking) && (
           <p className="rk-steps">
+            {gap.noTitle && <span className="rk-step rk-step--dup">Thiếu tên món</span>}
+            {gap.noPrice && <span className="rk-step rk-step--dup">Thiếu giá</span>}
+            {gap.noTracking && <span className="rk-step rk-step--dup">Đã gửi, chưa có mã vận đơn</span>}
             {missing(order) && <span className="rk-step rk-step--dup">Không còn trên Rakuma từ {order.missingSince}, kiểm tra xem bị huỷ hay hết hạn</span>}
             {unpaid(order) && <span className="rk-step rk-step--dup">Chưa thanh toán</span>}
             {dup.link && <span className="rk-step rk-step--dup">Trùng link{rowRefs(dup.link)}</span>}
@@ -245,6 +254,62 @@ function IssuePanel({ order }) {
   );
 }
 
+// "2026/10/06 15:56" -> day "06/10/2026" and time "15:56"
+const splitAt = at => { const m = (at || '').match(/^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{1,2}:\d{2})/); return m ? { day: `${m[3]}/${m[2]}/${m[1]}`, time: m[4] } : { day: '', time: at || '' }; };
+
+// Chat with the seller, laid out like a messenger: seller on the left, you on the right, a day divider when the date
+// changes, a "Tin mới" divider before the first unread seller message, and replies still waiting to be sent at the end.
+function ChatPanel({ order, onCancelReply }) {
+  const scroller = useRef(null);
+  const pending = order.replies.filter(r => r.status === 'PENDING');
+  const firstNew = order.messages.findIndex(m => m.new);
+  const seller = order.seller || 'Người bán';
+  useEffect(() => { const el = scroller.current; if (el) el.scrollTop = el.scrollHeight; }, [order.messages.length, pending.length]);
+
+  let lastDay = '';
+  return (
+    <section className="rk-chat" aria-label={`Tin nhắn với ${seller}`}>
+      <header className="rk-chat-head">
+        <span className="rk-avatar" aria-hidden="true">{seller.slice(0, 1)}</span>
+        <span className="rk-chat-name">{seller}</span>
+        <span className="rk-chat-meta">{order.messages.length} tin{order.newMessages > 0 && <> · <strong className="rk-new-count">{order.newMessages} mới</strong></>}{!order.chatOpen && ' · chat đã đóng'}</span>
+      </header>
+      <ol ref={scroller} className="rk-chat-body" tabIndex={0} aria-label="Tin nhắn giao dịch">
+        {order.messages.map((m, i) => {
+          const { day, time } = splitAt(m.at);
+          const showDay = day && day !== lastDay;
+          if (day) lastDay = day;
+          const me = m.from === 'buyer';
+          return (
+            <Fragment key={'m' + m.id}>
+              {showDay && <li className="rk-chat-day" aria-hidden="true"><span>{day}</span></li>}
+              {i === firstNew && <li className="rk-chat-divider"><span>Tin mới</span></li>}
+              <li className={'rk-bubble-row' + (me ? ' rk-bubble-row--me' : '')}>
+                <div className={'rk-bubble' + (me ? ' rk-bubble--me' : '') + (m.new ? ' rk-bubble--new' : '')}>
+                  <span className="sr-only">{me ? 'Bạn' : seller}{day && `, ${day}`}: </span>
+                  <p className="rk-bubble-text">{m.body}</p>
+                  <span className="rk-bubble-time">{time}{m.new && <span className="rk-bubble-new"> · mới</span>}</span>
+                </div>
+              </li>
+            </Fragment>
+          );
+        })}
+        {pending.map(r => (
+          <li key={'r' + r.id} className="rk-bubble-row rk-bubble-row--me">
+            <div className="rk-bubble rk-bubble--pending">
+              <p className="rk-bubble-text">{r.bodyVi}</p>
+              <span className="rk-bubble-time">
+                {r.kind === 'BROADCAST' ? 'Hỏi hàng loạt · ' : ''}Chờ dịch và gửi ·{' '}
+                <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => onCancelReply(r.id)}>Hủy</button>
+              </span>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function Thread({ order }) {
   const { api } = useApp();
   const [body, setBody] = useState('');
@@ -260,23 +325,7 @@ function Thread({ order }) {
   return (
     <div className="stack-md">
       {order.summary && <p className="rk-summary"><strong>Tóm tắt:</strong> {order.summary}</p>}
-      {hasThread && (
-        <ol className="rk-thread" aria-label="Tin nhắn giao dịch">
-          {order.messages.map(m => (
-            <li key={'m' + m.id} className={'rk-msg' + (m.from === 'buyer' ? ' rk-msg--me' : '') + (m.new ? ' rk-msg--new' : '')}>
-              <p className="caption">{m.from === 'buyer' ? 'Bạn' : 'Người bán'}{m.at && ` · ${m.at}`}{m.new && ' · mới'}</p>
-              <p className="rk-body">{m.body}</p>
-            </li>
-          ))}
-          {order.replies.filter(r => r.status === 'PENDING').map(r => (
-            <li key={'r' + r.id} className="rk-msg rk-msg--me rk-msg--pending">
-              <p className="caption">Bạn · {r.kind === 'BROADCAST' ? 'hỏi hàng (gửi hàng loạt), ' : ''}chờ Claude dịch và gửi</p>
-              <p className="rk-body">{r.bodyVi}</p>
-              <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => api.deleteRakumaReply(r.id)}>Hủy</button>
-            </li>
-          ))}
-        </ol>
-      )}
+      {hasThread && <ChatPanel order={order} onCancelReply={api.deleteRakumaReply} />}
       {done.length > 0 && (
         <details className="rk-sent">
           <summary className="caption">Đã xử lý {done.length} câu trả lời (xem bản tiếng Việt và tiếng Nhật)</summary>
@@ -308,14 +357,22 @@ function Thread({ order }) {
 
 const inOpen = (date, opens) => !!date && opens.some(p => date >= p.start && date <= p.end);
 
-const initial = (o, opens) => ({
-  periodId: '', productId: '', source: 'REGULAR', qty: '1', price: o.price ? String(o.price) : '', discount: o.discount ? String(o.discount) : '',
-  date: inOpen(o.date, opens) ? o.date : '', note: o.title ? `Rakuma ${o.orderNo} · ${o.title}` : `Rakuma ${o.orderNo}`,
-});
+// Product from the owner's keywords and quantity from "4BOX"-style titles; the lump price is split per unit only when
+// it divides evenly, otherwise the price is left empty for the owner
+const initial = (o, opens, guess) => {
+  const qty = guess.qty || 1;
+  const price = !o.price ? '' : qty === 1 ? String(o.price) : o.price % qty === 0 ? String(o.price / qty) : '';
+  const discount = !o.discount ? '' : String(qty === 1 ? o.discount : Math.floor(o.discount / qty));
+  return {
+    periodId: '', productId: guess.product ? guess.product.product.id : '', source: 'REGULAR', qty: String(qty), price, discount,
+    date: inOpen(o.date, opens) ? o.date : '', note: o.title ? `Rakuma ${o.orderNo} · ${o.title}` : `Rakuma ${o.orderNo}`,
+  };
+};
 
 function ApproveForm({ order }) {
   const { store, api } = useApp();
-  const [form, setForm] = useState(() => initial(order, store.openPeriods));
+  const [guess] = useState(() => ({ product: guessProduct(order.title, store.activeProducts), qty: guessQty(order.title) }));
+  const [form, setForm] = useState(() => initial(order, store.openPeriods, guess));
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
   const id = k => `rk-${order.id}-${k}`;
@@ -345,6 +402,14 @@ function ApproveForm({ order }) {
   return (
     <form className="rk-approve" noValidate aria-label={`Duyệt đơn ${order.orderNo}`} onSubmit={e => { e.preventDefault(); save(false); }}>
       <h4 className="label">Đưa vào Nhập hàng</h4>
+      {(guess.product || guess.qty) && (
+        <p className="caption">
+          {guess.product && `Tự chọn “${guess.product.product.name}” theo từ khóa trong tên món. `}
+          {guess.qty && `Tên món ghi ${guess.qty} hộp: tự đặt số lượng ${guess.qty}${order.price && order.price % guess.qty !== 0 ? ', giá chia không chẵn nên để trống, bạn điền giá mỗi cái' : ' và chia giá mỗi cái'}. `}
+          Kiểm tra lại trước khi lưu.
+        </p>
+      )}
+      {!guess.product && <p className="caption">Chưa nhận ra sản phẩm. Chọn tay, hoặc thêm từ khóa cho sản phẩm ở màn Sản phẩm để lần sau tự chọn.</p>}
       {order.date && !form.date && (
         <p className="note">Ngày đặt {fmtDate(order.date)} không thuộc kỳ nào đang mở ({store.openPeriods.map(p => p.label).join(', ')}), nên ô Ngày đặt để trống. Dòng nhập sẽ ghi vào kỳ {store.openPeriod.label} nếu bạn không chọn kỳ khác.</p>
       )}

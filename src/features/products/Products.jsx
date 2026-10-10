@@ -7,7 +7,7 @@ export default function Products({ composerOpen, composerSeq, closeComposer }) {
   const [name, setName] = useState('');
   const [addErr, setAddErr] = useState('');
   const [q, setQ] = useState('');
-  const [edit, setEdit] = useState({ id: null, draft: '', err: '' });
+  const [edit, setEdit] = useState({ id: null, draft: '', keywords: '', err: '' });
   const firstRef = useFocusOn(composerOpen, composerSeq);
 
   const submit = async e => {
@@ -16,8 +16,8 @@ export default function Products({ composerOpen, composerSeq, closeComposer }) {
     if (r.ok) { setName(''); setAddErr(''); firstRef.current?.focus(); } else setAddErr(r.error);
   };
   const saveEdit = async id => {
-    const r = await api.renameProduct(id, edit.draft);
-    if (r.ok) setEdit({ id: null, draft: '', err: '' }); else setEdit(x => ({ ...x, err: r.error }));
+    const r = await api.updateProduct(id, { name: edit.draft, keywords: edit.keywords });
+    if (r.ok) setEdit({ id: null, draft: '', keywords: '', err: '' }); else setEdit(x => ({ ...x, err: r.error }));
   };
   const cancelEdit = () => setEdit(x => ({ ...x, id: null, err: '' }));
 
@@ -83,10 +83,22 @@ export default function Products({ composerOpen, composerSeq, closeComposer }) {
                             }}
                             aria-label={`Tên mới cho ${p.name}`} aria-invalid={edit.err ? 'true' : 'false'}
                           />
+                          <input
+                            type="text" className="input" style={{ height: 36, minWidth: 160, padding: '0 10px', fontSize: 14 }}
+                            value={edit.keywords} onChange={e => setEdit(x => ({ ...x, keywords: e.target.value, err: '' }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { e.preventDefault(); saveEdit(p.id); }
+                              if (e.key === 'Escape') cancelEdit();
+                            }}
+                            placeholder="Từ khóa Rakuma, cách nhau bằng dấu phẩy" aria-label={`Từ khóa Rakuma cho ${p.name}`}
+                          />
                           {edit.err && <p role="alert" className="text-danger">{edit.err}</p>}
                         </div>
                       ) : (
-                        <span className={'b ' + (dim || '')}>{p.name}</span>
+                        <>
+                          <span className={'b ' + (dim || '')}>{p.name}</span>
+                          {p.keywords && <span className="cell-sub" title="Từ khóa Rakuma">Rakuma: {p.keywords}</span>}
+                        </>
                       )}
                     </td>
                     <td className={dim}>{p.active ? 'Đang dùng' : 'Ẩn'}</td>
@@ -100,7 +112,7 @@ export default function Products({ composerOpen, composerSeq, closeComposer }) {
                           </>
                         ) : (
                           <>
-                            <button type="button" className="btn-link" onClick={() => setEdit({ id: p.id, draft: p.name, err: '' })} aria-label={`Sửa tên ${p.name}`}>Sửa tên</button>
+                            <button type="button" className="btn-link" onClick={() => setEdit({ id: p.id, draft: p.name, keywords: p.keywords || '', err: '' })} aria-label={`Sửa tên / từ khóa ${p.name}`}>Sửa tên / từ khóa</button>
                             <button type="button" className="btn-link" onClick={() => api.toggleProductActive(p.id, !p.active)} aria-label={`${p.active ? 'Ẩn' : 'Hiện lại'} ${p.name}`}>{p.active ? 'Ẩn' : 'Hiện lại'}</button>
                             <button type="button" className="btn-link btn-link--danger" disabled={p.txCount > 0} onClick={() => api.deleteProduct(p.id)} aria-label={`Xóa ${p.name}`} aria-describedby="prod-del-note">Xóa</button>
                           </>

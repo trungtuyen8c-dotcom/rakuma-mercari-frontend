@@ -60,9 +60,9 @@ function buildApi(reload, notify, setSignedOut) {
       const r = await result(await http.post('/products', { name }), p => `Đã thêm “${p.name}” vào danh mục.`);
       return r.ok ? r : { ok: false, error: r.errors?.name || r.error };
     },
-    renameProduct: async (id, name) => {
-      const r = await result(await http.patch('/products/' + id, { name }));
-      return r.ok ? r : { ok: false, error: r.errors?.name || r.error };
+    updateProduct: async (id, patch) => {
+      const r = await result(await http.patch('/products/' + id, patch));
+      return r.ok ? r : { ok: false, error: r.errors?.name || r.errors?.keywords || r.error };
     },
     toggleProductActive: async (id, active) => act(await http.patch('/products/' + id, { active })),
     deleteProduct: async id => act(await http.del('/products/' + id), 'Đã xóa sản phẩm.'),
