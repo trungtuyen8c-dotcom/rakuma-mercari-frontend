@@ -60,9 +60,9 @@ function buildApi(reload, notify, setSignedOut) {
       const r = await result(await http.post('/products', { name }), p => `Đã thêm “${p.name}” vào danh mục.`);
       return r.ok ? r : { ok: false, error: r.errors?.name || r.error };
     },
-    renameProduct: async (id, name) => {
-      const r = await result(await http.patch('/products/' + id, { name }));
-      return r.ok ? r : { ok: false, error: r.errors?.name || r.error };
+    updateProduct: async (id, patch) => {
+      const r = await result(await http.patch('/products/' + id, patch));
+      return r.ok ? r : { ok: false, error: r.errors?.name || r.errors?.keywords || r.error };
     },
     toggleProductActive: async (id, active) => act(await http.patch('/products/' + id, { active })),
     deleteProduct: async id => act(await http.del('/products/' + id), 'Đã xóa sản phẩm.'),
@@ -90,9 +90,9 @@ function buildApi(reload, notify, setSignedOut) {
     handleRakuma: async id => act(await http.post(`/rakuma/orders/${id}/messages-handled`), 'Đã đánh dấu đã xử lý tin nhắn.'),
     updateRakuma: async (id, patch) => act(await http.patch(`/rakuma/orders/${id}`, patch),
       'issueNote' in patch ? (patch.issueNote.trim() ? 'Đã lưu vấn đề. Đơn này nằm ở mục Cần xử lý.' : 'Đã đánh dấu vấn đề đã giải quyết.') : 'Đã lưu đánh giá.'),
-    replyRakuma: async (id, body) => result(await http.post(`/rakuma/orders/${id}/replies`, { body }), 'Đã lưu câu trả lời. Claude sẽ dịch và gửi ở lần sync tới.'),
+    replyRakuma: async (id, body) => result(await http.post(`/rakuma/orders/${id}/replies`, { body }), 'Đã lưu câu trả lời. Chạy /rk-dich để dịch, rồi gửi bằng extension (mục Trả lời shop).'),
     broadcastRakuma: async (orderIds, body) => result(await http.post('/rakuma/broadcast', { orderIds, body }),
-      r => `Đã xếp ${r.queued} tin hỏi hàng. Claude sẽ dịch và gửi chậm ở các lần sync tới.${r.skipped ? ` Bỏ qua ${r.skipped} đơn đã đóng chat.` : ''}`),
+      r => `Đã xếp ${r.queued} tin hỏi hàng. Chạy /rk-dich để dịch, rồi gửi từng tin bằng extension.${r.skipped ? ` Bỏ qua ${r.skipped} đơn đã đóng chat.` : ''}`),
     deleteRakumaReply: async id => act(await http.del(`/rakuma/replies/${id}`), 'Đã hủy câu trả lời.'),
 
     openNextPeriod: async start => act(await http.post('/periods/open-next', start ? { start } : {}),

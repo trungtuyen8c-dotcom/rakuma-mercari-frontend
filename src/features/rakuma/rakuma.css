@@ -5,11 +5,29 @@
 .rk-title a { color: var(--c-ink); text-decoration: none; }
 .rk-title a:hover { color: var(--c-primary); }
 .rk-summary { margin: 0; font-size: 17px; line-height: 1.47; }
-.rk-thread { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-xs); }
-.rk-msg { display: flex; flex-direction: column; gap: var(--s-xxs); padding: var(--s-sm); border-radius: var(--r-md); background: var(--c-canvas-parchment); max-width: 640px; }
-.rk-msg--me { align-self: flex-end; background: var(--c-surface-pearl); border: 1px solid var(--c-hairline); }
-.rk-msg--new { border-left: 3px solid var(--c-primary); }
-.rk-msg--pending { border-style: dashed; }
+/* Chat: seller on the left (white), you on the right (dark), unread marked, newest at the bottom */
+.rk-chat { border: 1px solid var(--c-hairline); border-radius: var(--r-lg); background: var(--c-canvas-parchment); overflow: hidden; }
+.rk-chat-head { display: flex; align-items: center; gap: var(--s-xs); padding: var(--s-xs) var(--s-sm); background: var(--c-canvas); border-bottom: 1px solid var(--c-hairline); }
+.rk-avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--c-surface-tile-1); color: var(--c-on-dark); font-size: 15px; font-weight: 600; }
+.rk-chat-name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-chat-meta { margin-left: auto; font-size: 13px; color: var(--c-ink-muted-80); white-space: nowrap; }
+.rk-new-count { color: var(--c-danger); }
+.rk-chat-body { list-style: none; margin: 0; padding: var(--s-sm); display: flex; flex-direction: column; gap: var(--s-xs); max-height: 440px; overflow-y: auto; }
+.rk-chat-day, .rk-chat-divider { display: flex; align-items: center; gap: var(--s-xs); font-size: 12px; color: var(--c-ink-muted-80); margin: var(--s-xxs) 0; }
+.rk-chat-day::before, .rk-chat-day::after, .rk-chat-divider::before, .rk-chat-divider::after { content: ""; flex: 1; height: 1px; background: var(--c-hairline); }
+.rk-chat-divider { color: var(--c-danger); font-weight: 600; }
+.rk-chat-divider::before, .rk-chat-divider::after { background: var(--c-danger); opacity: .4; }
+.rk-bubble-row { display: flex; }
+.rk-bubble-row--me { justify-content: flex-end; }
+.rk-bubble { max-width: min(78%, 560px); padding: 8px 12px 6px; border-radius: var(--r-lg); border-bottom-left-radius: var(--r-xs); background: var(--c-canvas); border: 1px solid var(--c-hairline); display: flex; flex-direction: column; gap: 2px; }
+.rk-bubble--me { background: var(--c-surface-tile-1); color: var(--c-on-dark); border-color: var(--c-surface-tile-1); border-bottom-left-radius: var(--r-lg); border-bottom-right-radius: var(--r-xs); }
+.rk-bubble--new { border: 2px solid var(--c-danger); }
+.rk-bubble--pending { background: var(--c-surface-pearl); color: var(--c-ink); border: 1px dashed var(--c-ink-muted-48); border-bottom-left-radius: var(--r-lg); border-bottom-right-radius: var(--r-xs); }
+.rk-bubble-text { margin: 0; font-size: 16px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rk-bubble-ja { padding-top: 4px; border-top: 1px dashed var(--c-hairline); }
+.rk-bubble-time { align-self: flex-end; font-size: 11px; color: var(--c-ink-muted-80); }
+.rk-bubble--me .rk-bubble-time { color: var(--c-body-muted); }
+.rk-bubble-new { color: var(--c-danger); font-weight: 600; }
 .rk-body { margin: 0; font-size: 17px; line-height: 1.47; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rk-textarea { height: auto; min-height: 64px; padding: 10px 12px; line-height: 1.47; resize: vertical; font-family: inherit; }
 .rk-sent summary { cursor: pointer; }
