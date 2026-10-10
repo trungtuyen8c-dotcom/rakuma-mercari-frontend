@@ -298,8 +298,9 @@ function ChatPanel({ order, onCancelReply }) {
           <li key={'r' + r.id} className="rk-bubble-row rk-bubble-row--me">
             <div className="rk-bubble rk-bubble--pending">
               <p className="rk-bubble-text">{r.bodyVi}</p>
+              {r.bodyJa && <p className="rk-bubble-text rk-bubble-ja" lang="ja">{r.bodyJa}</p>}
               <span className="rk-bubble-time">
-                {r.kind === 'BROADCAST' ? 'Hỏi hàng loạt · ' : ''}Chờ dịch và gửi ·{' '}
+                {r.kind === 'BROADCAST' ? 'Hỏi hàng loạt · ' : ''}{r.bodyJa ? 'Đã dịch, gửi bằng extension' : 'Chờ dịch (/rk-dich)'} ·{' '}
                 <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => onCancelReply(r.id)}>Hủy</button>
               </span>
             </div>
@@ -342,7 +343,7 @@ function Thread({ order }) {
       {order.chatOpen && (<>
       <Field id={id} label="Trả lời người bán (viết tiếng Việt)" error={error}>
         <textarea {...invalidProps(id, error)} className="input rk-textarea" rows={2} value={body} onChange={e => { setBody(e.target.value); setError(''); }}
-          placeholder="Claude sẽ dịch sang tiếng Nhật lịch sự và gửi vào khung chat của đơn này ở lần sync tới." />
+          placeholder="Viết tiếng Việt. Claude dịch sang tiếng Nhật (/rk-dich), rồi bạn gửi bằng extension Rakuma → Sổ kho." />
       </Field>
       <div className="row-wrap">
         <button type="button" className="btn-primary btn-sm" disabled={!body.trim()} onClick={send}>Gửi trả lời</button>
@@ -495,7 +496,7 @@ function Broadcast({ orders }) {
     <div className="stack-md">
       <h2 className="h-tile">Hỏi hàng nhiều shop <span className="muted">· {targets.length} shop còn mở chat</span></h2>
       <p className="caption">
-        Gửi một câu hỏi tới các shop bạn đã mua. Chỉ hiện đơn còn mở chat, mỗi shop một lần. Claude dịch, thêm tên shop và tên món, rồi gửi cách nhau 1-2 phút, tối đa khoảng 20 tin mỗi lần sync.
+        Gửi một câu hỏi tới các shop bạn đã mua. Chỉ hiện đơn còn mở chat, mỗi shop một lần. Claude dịch và thêm tên shop, tên món (/rk-dich); bạn gửi từng tin bằng extension, nên cách nhau vài phút và mỗi ngày chỉ vài shop để tránh bị coi là spam.
         {waiting > 0 && <> Đang chờ gửi: <strong>{waiting} tin</strong>.</>}
       </p>
       {!open && <button type="button" className="btn-secondary btn-sm" disabled={!targets.length} onClick={() => setOpen(true)}>Chọn shop để hỏi</button>}

@@ -24,6 +24,7 @@
 .rk-bubble--new { border: 2px solid var(--c-danger); }
 .rk-bubble--pending { background: var(--c-surface-pearl); color: var(--c-ink); border: 1px dashed var(--c-ink-muted-48); border-bottom-left-radius: var(--r-lg); border-bottom-right-radius: var(--r-xs); }
 .rk-bubble-text { margin: 0; font-size: 16px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rk-bubble-ja { padding-top: 4px; border-top: 1px dashed var(--c-hairline); }
 .rk-bubble-time { align-self: flex-end; font-size: 11px; color: var(--c-ink-muted-80); }
 .rk-bubble--me .rk-bubble-time { color: var(--c-body-muted); }
 .rk-bubble-new { color: var(--c-danger); font-weight: 600; }
