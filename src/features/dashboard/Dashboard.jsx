@@ -15,6 +15,7 @@ export default function Dashboard() {
 
   return (
     <>
+      <Today store={store} />
       <section aria-labelledby="dash-total-h" className="dash-hero">
         <div className="wrap dash-hero-inner">
           <div className="dash-hero-head">
@@ -116,5 +117,37 @@ export default function Dashboard() {
         </div>
       </section>
     </>
+  );
+}
+
+// Everything waiting on the owner, most urgent first; each line goes to the screen that clears it.
+function Today({ store }) {
+  const a = store.alerts;
+  const items = [
+    [a.payDue.length, 'đơn sắp hết hạn thanh toán (dưới 24 giờ)', '#rakuma', true],
+    [a.toReceive.length, 'đơn đã giao tới, chưa bấm nhận hàng trên Rakuma', '#rakuma', true],
+    [a.slowShip.length, 'đơn shop chưa gửi sau 3 ngày', '#rakuma', false],
+    [a.unread.length, 'đơn có tin nhắn shop chưa đọc', '#rakuma', false],
+    [a.pendingReplies, 'câu trả lời chờ dịch hoặc chờ gửi', '#rakuma', false],
+    [a.stuck.length, 'đơn đã thanh toán chưa vào Nhập hàng', '#rakuma', true],
+    [a.unnamed.length, 'dòng nhập chưa có tên', '#purchases', true],
+    [a.oddPrice.length, 'dòng nhập giá lệch nhiều', '#purchases', false],
+    [a.negatives.length, 'sản phẩm tồn kho âm', '#inventory', true],
+  ].filter(([n]) => n > 0);
+  return (
+    <section aria-labelledby="dash-today-h" className="dash-today">
+      <div className="wrap dash-today-inner">
+        <h2 id="dash-today-h" className="h-tile">Việc hôm nay</h2>
+        {items.length === 0
+          ? <p className="caption">Không có việc gì cần làm.</p>
+          : (
+            <ul className="dash-today-list">
+              {items.map(([n, text, href, urgent]) => (
+                <li key={text}><a href={href} className={urgent ? 'dash-today-urgent' : undefined}><strong>{n}</strong> {text}</a></li>
+              ))}
+            </ul>
+          )}
+      </div>
+    </section>
   );
 }

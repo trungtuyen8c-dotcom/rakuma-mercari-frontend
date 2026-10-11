@@ -70,3 +70,9 @@
 .rk-inbox-reply { display: flex; flex-wrap: wrap; gap: var(--s-xs); align-items: flex-start; }
 .rk-inbox-reply textarea { flex: 1 1 260px; min-height: 40px; }
 .rk-inbox-reply .text-danger { flex-basis: 100%; }
+
+/* Delivered, waiting for 受取評価: one line per order */
+.rk-receive { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--c-divider-soft); }
+.rk-receive li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-xxs) var(--s-sm); padding: var(--s-xs) 0; border-bottom: 1px solid var(--c-divider-soft); }
+.rk-receive-title { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-more { align-self: flex-start; }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useApp, useNotice } from './store/app-store';
 import { NAV, CTA, readHash } from './routes/nav';
 import AppHeader from './components/AppHeader';
@@ -6,11 +6,19 @@ import SignIn from './features/auth/SignIn';
 import Dashboard from './features/dashboard/Dashboard';
 import Purchases from './features/purchases/Purchases';
 import Sales from './features/sales/Sales';
-import Inventory from './features/stock/Inventory';
-import Products from './features/products/Products';
-import Analysis from './features/analysis/Analysis';
-import Periods from './features/periods/Periods';
-import Settings from './features/settings/Settings';
+// Screens used now and then load on first visit, so the daily ones open sooner. After a deploy the old chunk files
+// are gone; a tab opened before it reloads once to pick up the new ones.
+const lazyScreen = load => lazy(() => load().then(m => { try { sessionStorage.removeItem('chunk-reload'); } catch { /* storage off */ } return m; }, err => {
+  let again = false;
+  try { again = !sessionStorage.getItem('chunk-reload'); if (again) sessionStorage.setItem('chunk-reload', '1'); } catch { /* storage off */ }
+  if (again) { location.reload(); return new Promise(() => {}); }
+  throw err;
+}));
+const Inventory = lazyScreen(() => import('./features/stock/Inventory'));
+const Products = lazyScreen(() => import('./features/products/Products'));
+const Analysis = lazyScreen(() => import('./features/analysis/Analysis'));
+const Periods = lazyScreen(() => import('./features/periods/Periods'));
+const Settings = lazyScreen(() => import('./features/settings/Settings'));
 import Rakuma, { needsAttention } from './features/rakuma/Rakuma';
 
 const SCREENS = { dashboard: Dashboard, purchases: Purchases, sales: Sales, inventory: Inventory, products: Products, analysis: Analysis, periods: Periods, settings: Settings, rakuma: Rakuma };
@@ -72,7 +80,9 @@ export default function App() {
       </div>
       <NoticeBar />
       <main id="main" tabIndex={-1} className="main">
-        <Screen composerOpen={composer.open} composerSeq={composer.seq} closeComposer={() => setComposer(c => ({ ...c, open: false }))} />
+        <Suspense fallback={<p className="caption wrap" aria-busy="true">Đang tải…</p>}>
+          <Screen composerOpen={composer.open} composerSeq={composer.seq} closeComposer={() => setComposer(c => ({ ...c, open: false }))} />
+        </Suspense>
       </main>
     </>
   );
