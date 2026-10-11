@@ -43,7 +43,9 @@ export function computeStore(s) {
     if (r.tracking) (tracks[r.tracking] = tracks[r.tracking] || []).push(r);
   });
   const stt = (kind, r) => { const k = kind + r.periodId; seq[k] = (seq[k] || 0) + 1; return seq[k]; }; // BR-02
-  const purchases = s.purchases.map(r => {
+  // BR-02, as the server numbers them: by order date within the period (no date last), then entry order
+  const byDate = (a, b) => (a.date || '9999').localeCompare(b.date || '9999') || Number(a.id) - Number(b.id);
+  const purchases = [...s.purchases].sort(byDate).map(r => {
     const g = r.tracking ? tracks[r.tracking] : [];
     return {
       ...r, stt: stt('p', r), productName: (prodById[r.productId] || {}).name || 'Chưa có tên', total: r.total ?? purTotal(r),
