@@ -67,12 +67,13 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 
   // the table follows the filters a beat later, so the search box stays smooth with thousands of rows
   const shown = useDeferredValue(filter);
-  const allPeriods = shown.period === 'all';
+  const openOnly = shown.period === 'open'; // every open period (two can be open at once)
+  const allPeriods = shown.period === 'all' || openOnly;
   const period = store.periods.find(p => p.id === (shown.period || store.openPeriod.id)) || store.openPeriod;
   // Filtering stays out of the form's keystrokes: rows only change with the data or the filters
   const rows = useMemo(() => {
     const q = shown.q.trim().toLowerCase();
-    return store.purchases.filter(r => (allPeriods || r.periodId === period.id)
+    return store.purchases.filter(r => (openOnly ? store.openPeriods.some(p => p.id === r.periodId) : allPeriods || r.periodId === period.id)
       && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
       && (shown.source === 'all' || r.source === shown.source)
       && (shown.product === 'all' || (shown.product === 'none' ? r.noProduct : r.productId === shown.product))
@@ -84,7 +85,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
         || (shown.status === 'dup' && (r.dupLink || r.dupTracking))
         || (shown.status === 'oddprice' && r.oddPrice)
         || (shown.status === 'refund' && r.refundNote)));
-  }, [store.purchases, shown, allPeriods, period.id]);
+  }, [store.purchases, store.openPeriods, shown, openOnly, allPeriods, period.id]);
   const setF = k => e => setFilter(f => ({ ...f, [k]: e.target.value }));
   const filtered = Object.keys(ALL).some(k => filter[k] !== ALL[k]);
 
@@ -178,6 +179,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
           <input type="search" aria-label="Tìm dòng nhập" className="pill pill--search" placeholder="Tìm sản phẩm, link, vận đơn, ghi chú…" value={filter.q} onChange={setF('q')} />
           <select aria-label="Kỳ" className="pill" value={filter.period || store.openPeriod.id} onChange={setF('period')}>
             <option value="all">Tất cả kỳ</option>
+            {store.openPeriods.length > 1 && <option value="open">Các kỳ đang mở</option>}
             {store.periods.map(p => <option key={p.id} value={p.id}>{`Kỳ ${p.label} · ${periodStatusText(p)}`}</option>)}
           </select>
           <select aria-label="Nguồn" className="pill" value={filter.source} onChange={setF('source')}>
@@ -215,7 +217,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
         {!allPeriods && period.status === 'CLOSED' && (
           <p className="note">{`Kỳ ${period.label} đã chốt ngày ${fmtDate(period.closedAt)}. Dữ liệu chỉ xem, không thể sửa.`}</p>
         )}
-        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} onEdit={startEdit} onSplit={startSplit} onRefund={startRefund} onRemove={remove} />
+        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} cards={store.cards} onEdit={startEdit} onSplit={startSplit} onRefund={startRefund} onRemove={remove} />
         {rows.length === 0 && (
           <p className="caption filter-active">
             {filtered ? 'Không còn dòng nào khớp bộ lọc.' : 'Chưa có dòng nhập nào.'}
@@ -233,25 +235,37 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 function PurchaseAlerts({ store, onShow }) {
   const a = store.alerts;
   const unnamed = a.unnamed.length, odd = a.oddPrice.length, stuck = a.stuck.length, toReceive = a.toReceive.length, refund = a.waitingRefund.length;
-  if (!unnamed && !odd && !stuck && !toReceive && !refund) return null;
+  const noCard = a.noCard.length, noCards = store.cards.length === 0;
+  if (!unnamed && !odd && !stuck && !toReceive && !refund && !noCard && !noCards) return null;
   return (
     <div role="region" aria-label="Cảnh báo nhập hàng" className="alert alert--tight">
       {unnamed > 0 && (
         <p className="text-danger">
           <strong>{unnamed} dòng chưa có tên</strong> (thường là đơn gộp hoặc tên không đọc được): bấm Sửa để chọn tên và kiểm giá, đơn gộp bấm Tách.{' '}
-          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'none', status: 'all' })}>Xem {unnamed} dòng</button>
+          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'none', status: 'all' })} aria-label={`Xem ${unnamed} dòng chưa có tên`}>Xem {unnamed} dòng</button>
         </p>
       )}
       {odd > 0 && (
         <p className="text-danger">
           <strong>{odd} dòng giá nhập lệch nhiều</strong> so với giá thường của sản phẩm đó (đơn gộp chưa tách hoặc gõ nhầm?).{' '}
-          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'all', status: 'oddprice' })}>Xem {odd} dòng</button>
+          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'all', status: 'oddprice' })} aria-label={`Xem ${odd} dòng giá lệch nhiều`}>Xem {odd} dòng</button>
+        </p>
+      )}
+      {noCards && (
+        <p className="text-danger">
+          <strong>Chưa có thẻ thanh toán nào.</strong> Thêm thẻ ở <a href="#settings" className="link-inline">Cài đặt → Thẻ thanh toán</a> rồi chọn thẻ ở cột “Thẻ” của từng dòng.
+        </p>
+      )}
+      {noCard > 0 && (
+        <p className="text-danger">
+          <strong>{noCard} dòng đã thanh toán nhưng chưa chọn thẻ</strong> (kỳ đang mở): chọn thẻ ở cột “Thẻ” để tiền trừ đúng thẻ.{' '}
+          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ period: store.openPeriods.length > 1 ? 'open' : '', product: 'all', card: 'none', status: 'all' })} aria-label={`Xem ${noCard} dòng chưa chọn thẻ`}>Xem {noCard} dòng</button>
         </p>
       )}
       {refund > 0 && (
         <p className="text-danger">
           <strong>{refund} đơn đang chờ hoàn tiền về thẻ.</strong> Tiền về rồi thì bấm “Hoàn tiền” ở dòng đó để ghi lại.{' '}
-          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'all', status: 'refund' })}>Xem {refund} đơn</button>
+          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'all', status: 'refund' })} aria-label={`Xem ${refund} đơn chờ hoàn tiền`}>Xem {refund} đơn</button>
         </p>
       )}
       {toReceive > 0 && (
@@ -270,11 +284,29 @@ function PurchaseAlerts({ store, onShow }) {
   );
 }
 
-const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdit, onSplit, onRefund, onRemove }) {
+// Payment card of a row, picked straight from the table. Empty when the row is not paid by card yet (red).
+function CardCell({ r, cards, api }) {
+  if (!cards.length) return <a href="#settings" className="caption">Thêm thẻ ở Cài đặt</a>;
+  const change = async e => {
+    const v = e.target.value;
+    const res = await api.setPurchaseCard(r.id, v);
+    if (res.warnings?.length && window.confirm(res.warnings.join('\n') + '\n\nVẫn đổi thẻ?')) api.setPurchaseCard(r.id, v, true);
+  };
+  const missing = r.cardId === '0';
+  return (
+    <select aria-label={`Thẻ thanh toán dòng ${r.stt} (${r.productName})`} aria-invalid={missing ? 'true' : 'false'}
+      className={'pur-card' + (missing ? ' pur-card--missing' : '')} value={missing ? '' : r.cardId} onChange={change}>
+      <option value="">Chưa chọn thẻ</option>
+      {cards.filter(c => c.active || c.id === r.cardId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+    </select>
+  );
+}
+
+const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, cards, onEdit, onSplit, onRefund, onRemove }) {
   return (
     <div role="region" aria-label="Bảng nhập hàng" tabIndex={0} className="table-wrap">
       {/* Compact layout: fits the 1200px page without sideways scrolling; narrower screens still scroll */}
-      <table className="table table--hover table--nowrap-head table--dense" style={{ minWidth: 760 }}>
+      <table className="table table--hover table--nowrap-head table--dense" style={{ minWidth: 900 }}>
         <thead>
           <tr>
             <th scope="col" className="r">STT</th>
@@ -282,6 +314,7 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
             <th scope="col">Sản phẩm</th>
             <th scope="col" className="r">Giá × SL</th>
             <th scope="col" className="r">Tổng</th>
+            <th scope="col" title="Phương thức thanh toán">Thẻ</th>
             <th scope="col">Link</th>
             <th scope="col">Vận đơn</th>
             <th scope="col" className="c" title="Đã kiểm hàng">Kiểm</th>
@@ -305,10 +338,8 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
                 {r.discount > 0 && <span className="cell-sub">−{yen(r.discount)}/cái</span>}
                 {r.oddPrice && <span className="cell-sub b neg">giá lệch nhiều</span>}
               </td>
-              <td className="r nw">
-                <span className="b">{yen(r.total)}</span>
-                {r.cardName && <span className="cell-sub">{r.cardName}</span>}
-              </td>
+              <td className="r nw b">{yen(r.total)}</td>
+              <td className="nw"><CardCell r={r} cards={cards} api={api} /></td>
               <td className={'nw' + (r.dupLink ? ' cell-dup' : '')}>
                 {r.link
                   ? <a href={r.link} target="_blank" rel="noopener noreferrer" title={r.link} style={r.dupLink ? { color: 'var(--c-danger)' } : undefined}>{siteLabel(r.link)} ↗</a>
