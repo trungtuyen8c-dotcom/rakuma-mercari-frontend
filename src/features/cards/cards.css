@@ -8,3 +8,8 @@
 .cl-totals dd { margin: 0; font-family: var(--f-display); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .table tr.cl-detail { background: var(--c-canvas-parchment); }
 .cl-note { font-size: 13px; overflow-wrap: anywhere; }
+.cl-wait { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+.cl-check { display: flex; flex-wrap: wrap; gap: 4px var(--s-xs); align-items: baseline; }
+.cl-ok { font-size: 13px; font-weight: 600; color: var(--c-ink); }
+.cl-ok::before { content: "✓ "; }
+.cl-bad { font-size: 13px; font-weight: 600; color: var(--c-danger); }

@@ -50,7 +50,12 @@ function buildApi(reload, notify, setSignedOut) {
     addPurchase: async (d, f) => result(await http.post('/purchases' + force(f), d), r => `Đã thêm dòng nhập “${r.productName}”: ${yen(r.total)}.`),
     updatePurchase: async (id, d, f) => result(await http.put('/purchases/' + id + force(f), d), r => `Đã sửa dòng nhập “${r.productName}”: ${yen(r.total)}.`),
     splitPurchase: async (id, lines) => result(await http.post('/purchases/' + id + '/split', { lines }), r => `Đã tách thành ${r.length} dòng nhập.`),
-    deletePurchase: async id => act(await http.del('/purchases/' + id), 'Đã xóa dòng nhập.'),
+    deletePurchase: async (id, f) => act(await http.del('/purchases/' + id + force(f)), 'Đã xóa dòng nhập.'),
+    setRefundNote: async (id, note) => result(await http.put('/purchases/' + id + '/refund-note', { note }), r => (r.refundNote ? 'Đã ghi chú chờ hoàn tiền.' : 'Đã bỏ ghi chú chờ hoàn tiền.')),
+    recordRefund: async (id, d, f) => result(await http.post('/purchases/' + id + '/refund' + force(f), d), r => `Đã ghi hoàn ${yen(r.amount)} về thẻ ${r.cardName}.`),
+    deleteRefund: async (id, f) => act(await http.del('/card-refunds/' + id + force(f)), 'Đã xoá khoản hoàn tiền.'),
+    reconcile: async (cardId, month) => act(await http.put(`/cards/${cardId}/reconciliations/${month}`), `Đã đánh dấu đối soát tháng ${month.slice(5)}/${month.slice(0, 4)}.`),
+    unreconcile: async (cardId, month) => act(await http.del(`/cards/${cardId}/reconciliations/${month}`), 'Đã bỏ đánh dấu đối soát.'),
     togglePurchase: async (id, field, value) => act(await http.patch('/purchases/' + id, { [field]: value })),
 
     addSale: async (d, f) => result(await http.post('/sales' + force(f), d), r => `Đã ghi bán ${r.qty} “${r.productName}”: ${yen(r.total)}.`),
