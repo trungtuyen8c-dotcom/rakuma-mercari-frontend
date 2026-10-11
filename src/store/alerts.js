@@ -16,6 +16,7 @@ export function computeAlerts(store) {
     pendingReplies: orders.reduce((n, o) => n + o.replies.filter(r => r.status === 'PENDING').length, 0),
     stuck: orders.filter(o => !o.purchaseId && !o.dismissed && !o.status.startsWith('支払い')),
     unnamed: store.purchases.filter(r => r.noProduct),
+    waitingRefund: store.purchases.filter(r => r.refundNote),
     oddPrice: store.purchases.filter(r => r.oddPrice),
     negatives: store.negatives,
   };

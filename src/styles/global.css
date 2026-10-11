@@ -249,3 +249,5 @@ select.pill { cursor: pointer; }
 .modal > form { border: 0; box-shadow: none; }
 .filter-active { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-xs); }
 .modal .form-foot { position: sticky; bottom: 0; margin: 0 calc(-1 * var(--s-lg)) calc(-1 * var(--s-lg)); padding: var(--s-sm) var(--s-lg); background: var(--c-canvas); border-top: 1px solid var(--c-hairline); }
+.rf-book { padding-top: var(--s-md); border-top: 1px solid var(--c-hairline); }
+.pur-refund { color: var(--c-danger); font-weight: 600; }
