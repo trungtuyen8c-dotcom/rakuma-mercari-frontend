@@ -52,6 +52,7 @@ export function computeStore(s) {
     return {
       ...r, stt: stt('p', r), productName: (prodById[r.productId] || {}).name || 'Chưa có tên', total: r.total ?? purTotal(r),
       noProduct: !prodById[r.productId], // written by the Rakuma sync before the product was known
+      cardId: r.cardId || '0',
       dupLink: !!r.link && links[r.link].length > 1, // BR-05
       dupTracking: g.length > 1 && !g.every(x => x.merged), // BR-06: merged shipments are not flagged
       locked: perById[r.periodId].status === 'CLOSED', periodLabel: perById[r.periodId].label,
@@ -93,6 +94,8 @@ export function computeStore(s) {
     products, activeProducts: products.filter(p => p.active), purchases, purchaseIndex, sales, unitCost,
     inventory: cur.inventory, negatives: cur.negatives, totals: cur.totals, statsFor,
     settings: s.settings, user: s.user, apiKeys: s.apiKeys, rakuma: s.rakuma || [],
+    cards: s.cards || [], activeCards: (s.cards || []).filter(c => c.active),
+    cardRefunds: s.cardRefunds || [], cardReconciliations: s.cardReconciliations || [],
   };
   // Time-based warnings (payment due, slow seller) are counted at each load; every write reloads the data
   store.alerts = computeAlerts(store);

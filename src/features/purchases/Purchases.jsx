@@ -6,16 +6,20 @@ import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField, { targetPeriod } from '../../components/PeriodField';
 import SplitForm from './SplitForm';
+import RefundDialog from './RefundDialog';
 import Modal from '../../components/Modal';
 
-const ALL = { period: '', source: 'all', product: 'all', status: 'all', q: '' };
-const blank = keep => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '' });
+const ALL = { period: '', source: 'all', product: 'all', card: 'all', status: 'all', q: '' };
+// A new row keeps the period, source, date and card of the previous one (several rows of one order in a row)
+const blank = (keep, card = '') => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '', cardId: keep ? keep.cardId : card });
 
 export default function Purchases({ composerOpen, composerSeq, closeComposer }) {
   const { store, api } = useApp();
-  const [form, setForm] = useState(blank);
+  const defaultCard = (store.activeCards.find(c => c.default) || {}).id || '';
+  const [form, setForm] = useState(() => blank(null, defaultCard));
   const [editing, setEditing] = useState(null); // the row being edited, or null when adding
   const [splitting, setSplitting] = useState(null); // the combined-order row being split into products
+  const [refunding, setRefunding] = useState(null); // the row whose refund is being noted or booked
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
   const [filter, setFilter] = useState(ALL);
@@ -40,22 +44,25 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
       setWarnings(res.warnings || []);
     }
   };
-  const cancel = () => { setForm(blank()); setErrors({}); setWarnings([]); closeComposer(); };
-  const closeEdit = () => { setEditing(null); setForm(blank()); setErrors({}); setWarnings([]); };
+  const cancel = () => { setForm(blank(null, defaultCard)); setErrors({}); setWarnings([]); closeComposer(); };
+  const closeEdit = () => { setEditing(null); setForm(blank(null, defaultCard)); setErrors({}); setWarnings([]); };
   // Any row is editable, closed months too; the totals of later months are recomputed from the rows
   const startEdit = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     setForm({ periodId: r.periodId, productId: r.noProduct ? '' : r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
-      discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note });
+      discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note, cardId: r.cardId === '0' ? '' : r.cardId });
     setEditing(r); setSplitting(null); setErrors({}); setWarnings([]);
   }, []);
   const startSplit = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Tách sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     setSplitting(r); setEditing(null);
   }, []);
-  const remove = useCallback(r => {
+  const startRefund = useCallback(r => { setRefunding(r); setEditing(null); setSplitting(null); }, []);
+  const remove = useCallback(async r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Xóa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
-    api.deletePurchase(r.id);
+    if (r.cardId !== '0' && !window.confirm(`Dòng này đã trừ ${yen(r.total)} vào thẻ ${r.cardName}. Xoá dòng thì khoản trừ biến khỏi sổ thẻ. Nếu tiền được hoàn về thẻ, bấm "Hoàn tiền" thay vì xoá. Vẫn xoá?`)) return;
+    const res = await api.deletePurchase(r.id);
+    if (res.warnings?.length && window.confirm(res.warnings.join('\n') + '\n\nVẫn xoá?')) api.deletePurchase(r.id, true);
   }, [api]);
 
   // the table follows the filters a beat later, so the search box stays smooth with thousands of rows
@@ -69,12 +76,14 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
       && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
       && (shown.source === 'all' || r.source === shown.source)
       && (shown.product === 'all' || (shown.product === 'none' ? r.noProduct : r.productId === shown.product))
+      && (shown.card === 'all' || r.cardId === (shown.card === 'none' ? '0' : shown.card))
       && (shown.status === 'all'
         || (shown.status === 'unchecked' && !r.checked)
         || (shown.status === 'unreviewed' && !r.reviewed)
         || (shown.status === 'done' && r.checked && r.reviewed)
         || (shown.status === 'dup' && (r.dupLink || r.dupTracking))
-        || (shown.status === 'oddprice' && r.oddPrice)));
+        || (shown.status === 'oddprice' && r.oddPrice)
+        || (shown.status === 'refund' && r.refundNote)));
   }, [store.purchases, shown, allPeriods, period.id]);
   const setF = k => e => setFilter(f => ({ ...f, [k]: e.target.value }));
   const filtered = Object.keys(ALL).some(k => filter[k] !== ALL[k]);
@@ -115,6 +124,12 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <Field id="pur-discount" label="Giảm giá mỗi cái (¥)" error={errors.discount}>
               <input {...invalidProps('pur-discount', errors.discount)} type="number" inputMode="numeric" min="0" step="1" className="input" value={form.discount} onChange={on('discount')} />
             </Field>
+            <Field id="pur-card" label="Thẻ thanh toán" error={errors.cardId}>
+              <select {...invalidProps('pur-card', errors.cardId)} className="input" value={form.cardId} onChange={on('cardId')}>
+                <option value="">Không ghi thẻ</option>
+                {store.cards.filter(c => c.active || c.id === form.cardId).map(c => <option key={c.id} value={c.id}>{c.name}{c.active ? '' : ' (đã ẩn)'}</option>)}
+              </select>
+            </Field>
             <Field id="pur-tracking" label="Mã vận đơn" error={errors.tracking}>
               <input {...invalidProps('pur-tracking', errors.tracking)} type="text" inputMode="numeric" autoComplete="off" placeholder="622955047890" className="input" value={form.tracking} onChange={on('tracking')} />
             </Field>
@@ -150,6 +165,11 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
           <SplitForm key={splitting.id} row={splitting} store={store} api={api} onClose={() => setSplitting(null)} />
         </Modal>
       )}
+      {refunding && (
+        <Modal label="Hoàn tiền" onClose={() => setRefunding(null)}>
+          <RefundDialog key={refunding.id} row={refunding} api={api} onClose={() => setRefunding(null)} />
+        </Modal>
+      )}
       {editing && <Modal label={`Sửa dòng ${editing.stt}`} onClose={closeEdit}>{formEl}</Modal>}
       {composerOpen && !editing && formEl}
 
@@ -170,6 +190,13 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <option value="none">Chưa có tên</option>
             {store.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          {store.cards.length > 0 && (
+            <select aria-label="Thẻ" className="pill" value={filter.card} onChange={setF('card')}>
+              <option value="all">Mọi thẻ</option>
+              <option value="none">Chưa ghi thẻ</option>
+              {store.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
           <select aria-label="Trạng thái" className="pill" value={filter.status} onChange={setF('status')}>
             <option value="all">Mọi trạng thái</option>
             <option value="unchecked">Chưa kiểm hàng</option>
@@ -177,6 +204,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <option value="done">Hoàn tất</option>
             <option value="dup">Có ô trùng</option>
             <option value="oddprice">Giá lệch nhiều</option>
+            <option value="refund">Chờ hoàn tiền</option>
           </select>
           {filtered && <button type="button" className="btn-link btn-link--tight" onClick={() => setFilter(ALL)}>Bỏ lọc, xem tất cả</button>}
         </div>
@@ -187,7 +215,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
         {!allPeriods && period.status === 'CLOSED' && (
           <p className="note">{`Kỳ ${period.label} đã chốt ngày ${fmtDate(period.closedAt)}. Dữ liệu chỉ xem, không thể sửa.`}</p>
         )}
-        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} onEdit={startEdit} onSplit={startSplit} onRemove={remove} />
+        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} onEdit={startEdit} onSplit={startSplit} onRefund={startRefund} onRemove={remove} />
         {rows.length === 0 && (
           <p className="caption filter-active">
             {filtered ? 'Không còn dòng nào khớp bộ lọc.' : 'Chưa có dòng nhập nào.'}
@@ -204,8 +232,8 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 // orders it could not write (no price or date, month not open), shown above the table so nothing is missed.
 function PurchaseAlerts({ store, onShow }) {
   const a = store.alerts;
-  const unnamed = a.unnamed.length, odd = a.oddPrice.length, stuck = a.stuck.length, toReceive = a.toReceive.length;
-  if (!unnamed && !odd && !stuck && !toReceive) return null;
+  const unnamed = a.unnamed.length, odd = a.oddPrice.length, stuck = a.stuck.length, toReceive = a.toReceive.length, refund = a.waitingRefund.length;
+  if (!unnamed && !odd && !stuck && !toReceive && !refund) return null;
   return (
     <div role="region" aria-label="Cảnh báo nhập hàng" className="alert alert--tight">
       {unnamed > 0 && (
@@ -218,6 +246,12 @@ function PurchaseAlerts({ store, onShow }) {
         <p className="text-danger">
           <strong>{odd} dòng giá nhập lệch nhiều</strong> so với giá thường của sản phẩm đó (đơn gộp chưa tách hoặc gõ nhầm?).{' '}
           <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'all', status: 'oddprice' })}>Xem {odd} dòng</button>
+        </p>
+      )}
+      {refund > 0 && (
+        <p className="text-danger">
+          <strong>{refund} đơn đang chờ hoàn tiền về thẻ.</strong> Tiền về rồi thì bấm “Hoàn tiền” ở dòng đó để ghi lại.{' '}
+          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'all', status: 'refund' })}>Xem {refund} đơn</button>
         </p>
       )}
       {toReceive > 0 && (
@@ -236,7 +270,7 @@ function PurchaseAlerts({ store, onShow }) {
   );
 }
 
-const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdit, onSplit, onRemove }) {
+const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdit, onSplit, onRefund, onRemove }) {
   return (
     <div role="region" aria-label="Bảng nhập hàng" tabIndex={0} className="table-wrap">
       {/* Compact layout: fits the 1200px page without sideways scrolling; narrower screens still scroll */}
@@ -264,13 +298,17 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
                 {r.noProduct ? <span className="b text-danger">Chưa có tên</span> : <span className="b">{r.productName}</span>}
                 {r.source === 'BULK' && <span className="cell-sub">Lô lớn</span>}
                 {r.note && <span className="cell-sub" title={r.note}>{r.note}</span>}
+                {r.refundNote && <span className="cell-sub pur-refund" title={r.refundNote}>Chờ hoàn tiền: {r.refundNote}</span>}
               </td>
               <td className="r nw">
                 {yen(r.price)} × {r.qty}
                 {r.discount > 0 && <span className="cell-sub">−{yen(r.discount)}/cái</span>}
                 {r.oddPrice && <span className="cell-sub b neg">giá lệch nhiều</span>}
               </td>
-              <td className="r nw b">{yen(r.total)}</td>
+              <td className="r nw">
+                <span className="b">{yen(r.total)}</span>
+                {r.cardName && <span className="cell-sub">{r.cardName}</span>}
+              </td>
               <td className={'nw' + (r.dupLink ? ' cell-dup' : '')}>
                 {r.link
                   ? <a href={r.link} target="_blank" rel="noopener noreferrer" title={r.link} style={r.dupLink ? { color: 'var(--c-danger)' } : undefined}>{siteLabel(r.link)} ↗</a>
@@ -289,6 +327,7 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
               </td>
               <td className="act nw">
                 <button type="button" className="btn-link btn-link--tight" onClick={() => onEdit(r)} aria-label={`Sửa dòng ${r.stt} (${r.productName})`}>Sửa</button>
+                {r.cardId !== '0' && <button type="button" className="btn-link btn-link--tight" onClick={() => onRefund(r)} aria-label={`Hoàn tiền dòng ${r.stt} (${r.productName})`}>Hoàn tiền</button>}
                 {r.link && <button type="button" className="btn-link btn-link--tight" onClick={() => onSplit(r)} aria-label={`Tách đơn gộp dòng ${r.stt} (${r.productName})`}>Tách</button>}
                 <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => onRemove(r)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
               </td>

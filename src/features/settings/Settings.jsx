@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../store/app-store';
 import { yen, fmtDate } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
+import Cards from './Cards';
 
 const DEF = [
   ['rate', 'Tỷ giá (¥ → ₫)', '0.01'],
@@ -78,6 +79,8 @@ export default function Settings() {
           <button type="button" className="btn-secondary" onClick={api.signOut}>Đăng xuất</button>
         </div>
       </article>
+
+      <Cards />
 
       <article aria-labelledby="set-key-h" className="card card--lg">
         <div className="stack-xxs">
