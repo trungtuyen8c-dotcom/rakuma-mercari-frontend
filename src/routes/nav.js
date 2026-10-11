@@ -6,6 +6,7 @@ export const NAV = [
   ['inventory', 'Tồn kho'],
   ['products', 'Sản phẩm'],
   ['analysis', 'Phân tích'],
+  ['cards', 'Sổ thẻ'],
   ['periods', 'Chốt kỳ'],
   ['settings', 'Cài đặt'],
 ];

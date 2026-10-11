@@ -19,9 +19,10 @@ const Products = lazyScreen(() => import('./features/products/Products'));
 const Analysis = lazyScreen(() => import('./features/analysis/Analysis'));
 const Periods = lazyScreen(() => import('./features/periods/Periods'));
 const Settings = lazyScreen(() => import('./features/settings/Settings'));
+const CardLedger = lazyScreen(() => import('./features/cards/CardLedger'));
 import Rakuma, { needsAttention } from './features/rakuma/Rakuma';
 
-const SCREENS = { dashboard: Dashboard, purchases: Purchases, sales: Sales, inventory: Inventory, products: Products, analysis: Analysis, periods: Periods, settings: Settings, rakuma: Rakuma };
+const SCREENS = { dashboard: Dashboard, purchases: Purchases, sales: Sales, inventory: Inventory, products: Products, analysis: Analysis, cards: CardLedger, periods: Periods, settings: Settings, rakuma: Rakuma };
 
 export default function App() {
   const { status, store, api } = useApp();
