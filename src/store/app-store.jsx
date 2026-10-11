@@ -57,6 +57,7 @@ function buildApi(reload, notify, setSignedOut) {
     updateSale: async (id, d, f) => result(await http.put('/sales/' + id + force(f), d), r => `Đã sửa đơn bán “${r.productName}”: ${yen(r.total)}.`),
     deleteSale: async id => act(await http.del('/sales/' + id), 'Đã xóa đơn bán.'),
 
+    cardLedger: ({ from, to, wallet }) => http.get('/wallet-ledger?' + new URLSearchParams({ from, to, wallet })),
     addCard: async name => result(await http.post('/cards', { name }), c => `Đã thêm thẻ “${c.name}”.`),
     updateCard: async (id, patch) => act(await http.patch('/cards/' + id, patch)),
     deleteCard: async id => act(await http.del('/cards/' + id), 'Đã xóa thẻ.'),

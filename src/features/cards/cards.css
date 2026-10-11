@@ -1,0 +1,10 @@
+.cl-field { display: inline-flex; align-items: center; gap: var(--s-xxs); }
+.cl-seg { display: inline-flex; border: 1px solid var(--c-hairline); border-radius: var(--r-pill); overflow: hidden; }
+.cl-seg-btn { min-height: 40px; padding: 0 16px; border: 0; background: var(--c-canvas); color: var(--c-ink); font-size: 14px; cursor: pointer; }
+.cl-seg-btn.is-on { background: var(--c-surface-tile-1); color: var(--c-on-dark); font-weight: 600; }
+.cl-totals { margin: 0; display: flex; flex-wrap: wrap; gap: var(--s-sm) var(--s-xl); }
+.cl-totals > div { display: flex; flex-direction: column; }
+.cl-totals dt { font-size: 14px; color: var(--c-ink-muted-80); }
+.cl-totals dd { margin: 0; font-family: var(--f-display); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.table tr.cl-detail { background: var(--c-canvas-parchment); }
+.cl-note { font-size: 13px; overflow-wrap: anywhere; }
