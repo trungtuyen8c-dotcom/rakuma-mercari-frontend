@@ -8,12 +8,14 @@ import PeriodField, { targetPeriod } from '../../components/PeriodField';
 import SplitForm from './SplitForm';
 import Modal from '../../components/Modal';
 
-const ALL = { period: '', source: 'all', product: 'all', status: 'all', q: '' };
-const blank = keep => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '' });
+const ALL = { period: '', source: 'all', product: 'all', card: 'all', status: 'all', q: '' };
+// A new row keeps the period, source, date and card of the previous one (several rows of one order in a row)
+const blank = (keep, card = '') => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '', cardId: keep ? keep.cardId : card });
 
 export default function Purchases({ composerOpen, composerSeq, closeComposer }) {
   const { store, api } = useApp();
-  const [form, setForm] = useState(blank);
+  const defaultCard = (store.activeCards.find(c => c.default) || {}).id || '';
+  const [form, setForm] = useState(() => blank(null, defaultCard));
   const [editing, setEditing] = useState(null); // the row being edited, or null when adding
   const [splitting, setSplitting] = useState(null); // the combined-order row being split into products
   const [errors, setErrors] = useState({});
@@ -40,13 +42,13 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
       setWarnings(res.warnings || []);
     }
   };
-  const cancel = () => { setForm(blank()); setErrors({}); setWarnings([]); closeComposer(); };
-  const closeEdit = () => { setEditing(null); setForm(blank()); setErrors({}); setWarnings([]); };
+  const cancel = () => { setForm(blank(null, defaultCard)); setErrors({}); setWarnings([]); closeComposer(); };
+  const closeEdit = () => { setEditing(null); setForm(blank(null, defaultCard)); setErrors({}); setWarnings([]); };
   // Any row is editable, closed months too; the totals of later months are recomputed from the rows
   const startEdit = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     setForm({ periodId: r.periodId, productId: r.noProduct ? '' : r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
-      discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note });
+      discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note, cardId: r.cardId === '0' ? '' : r.cardId });
     setEditing(r); setSplitting(null); setErrors({}); setWarnings([]);
   }, []);
   const startSplit = useCallback(r => {
@@ -69,6 +71,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
       && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
       && (shown.source === 'all' || r.source === shown.source)
       && (shown.product === 'all' || (shown.product === 'none' ? r.noProduct : r.productId === shown.product))
+      && (shown.card === 'all' || r.cardId === (shown.card === 'none' ? '0' : shown.card))
       && (shown.status === 'all'
         || (shown.status === 'unchecked' && !r.checked)
         || (shown.status === 'unreviewed' && !r.reviewed)
@@ -114,6 +117,12 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             </Field>
             <Field id="pur-discount" label="Giảm giá mỗi cái (¥)" error={errors.discount}>
               <input {...invalidProps('pur-discount', errors.discount)} type="number" inputMode="numeric" min="0" step="1" className="input" value={form.discount} onChange={on('discount')} />
+            </Field>
+            <Field id="pur-card" label="Thẻ thanh toán" error={errors.cardId}>
+              <select {...invalidProps('pur-card', errors.cardId)} className="input" value={form.cardId} onChange={on('cardId')}>
+                <option value="">Không ghi thẻ</option>
+                {store.cards.filter(c => c.active || c.id === form.cardId).map(c => <option key={c.id} value={c.id}>{c.name}{c.active ? '' : ' (đã ẩn)'}</option>)}
+              </select>
             </Field>
             <Field id="pur-tracking" label="Mã vận đơn" error={errors.tracking}>
               <input {...invalidProps('pur-tracking', errors.tracking)} type="text" inputMode="numeric" autoComplete="off" placeholder="622955047890" className="input" value={form.tracking} onChange={on('tracking')} />
@@ -170,6 +179,13 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <option value="none">Chưa có tên</option>
             {store.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          {store.cards.length > 0 && (
+            <select aria-label="Thẻ" className="pill" value={filter.card} onChange={setF('card')}>
+              <option value="all">Mọi thẻ</option>
+              <option value="none">Chưa ghi thẻ</option>
+              {store.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
           <select aria-label="Trạng thái" className="pill" value={filter.status} onChange={setF('status')}>
             <option value="all">Mọi trạng thái</option>
             <option value="unchecked">Chưa kiểm hàng</option>
@@ -270,7 +286,10 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
                 {r.discount > 0 && <span className="cell-sub">−{yen(r.discount)}/cái</span>}
                 {r.oddPrice && <span className="cell-sub b neg">giá lệch nhiều</span>}
               </td>
-              <td className="r nw b">{yen(r.total)}</td>
+              <td className="r nw">
+                <span className="b">{yen(r.total)}</span>
+                {r.cardName && <span className="cell-sub">{r.cardName}</span>}
+              </td>
               <td className={'nw' + (r.dupLink ? ' cell-dup' : '')}>
                 {r.link
                   ? <a href={r.link} target="_blank" rel="noopener noreferrer" title={r.link} style={r.dupLink ? { color: 'var(--c-danger)' } : undefined}>{siteLabel(r.link)} ↗</a>
