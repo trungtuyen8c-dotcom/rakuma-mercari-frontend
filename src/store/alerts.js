@@ -17,6 +17,8 @@ export function computeAlerts(store) {
     stuck: orders.filter(o => !o.purchaseId && !o.dismissed && !o.status.startsWith('支払い')),
     unnamed: store.purchases.filter(r => r.noProduct),
     waitingRefund: store.purchases.filter(r => r.refundNote),
+    // Every purchase is paid; once cards exist, a row of an open month without one is missing from the card ledger
+    noCard: store.cards.length ? store.purchases.filter(r => r.cardId === '0' && store.openPeriods.some(p => p.id === r.periodId)) : [],
     oddPrice: store.purchases.filter(r => r.oddPrice),
     negatives: store.negatives,
   };
