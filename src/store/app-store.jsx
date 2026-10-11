@@ -57,6 +57,9 @@ function buildApi(reload, notify, setSignedOut) {
     updateSale: async (id, d, f) => result(await http.put('/sales/' + id + force(f), d), r => `Đã sửa đơn bán “${r.productName}”: ${yen(r.total)}.`),
     deleteSale: async id => act(await http.del('/sales/' + id), 'Đã xóa đơn bán.'),
 
+    addCard: async name => result(await http.post('/cards', { name }), c => `Đã thêm thẻ “${c.name}”.`),
+    updateCard: async (id, patch) => act(await http.patch('/cards/' + id, patch)),
+    deleteCard: async id => act(await http.del('/cards/' + id), 'Đã xóa thẻ.'),
     addProduct: async name => {
       const r = await result(await http.post('/products', { name }), p => `Đã thêm “${p.name}” vào danh mục.`);
       return r.ok ? r : { ok: false, error: r.errors?.name || r.error };

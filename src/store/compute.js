@@ -93,6 +93,7 @@ export function computeStore(s) {
     products, activeProducts: products.filter(p => p.active), purchases, purchaseIndex, sales, unitCost,
     inventory: cur.inventory, negatives: cur.negatives, totals: cur.totals, statsFor,
     settings: s.settings, user: s.user, apiKeys: s.apiKeys, rakuma: s.rakuma || [],
+    cards: s.cards || [], activeCards: (s.cards || []).filter(c => c.active),
   };
   // Time-based warnings (payment due, slow seller) are counted at each load; every write reloads the data
   store.alerts = computeAlerts(store);
