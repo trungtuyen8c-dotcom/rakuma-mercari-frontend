@@ -241,3 +241,4 @@ select.pill { cursor: pointer; }
   .split-line { grid-template-columns: 1fr 72px; }
   .split-line select { grid-column: 1 / -1; }
 }
+.table tr.row-warn { background: var(--c-danger-bg); }

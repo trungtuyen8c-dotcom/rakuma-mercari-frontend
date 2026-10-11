@@ -53,3 +53,20 @@
 .rk-step--dup { border-color: var(--c-danger); background: var(--c-danger-bg); color: var(--c-danger); font-weight: 600; }
 .rk-step--done { border-color: var(--c-primary); color: var(--c-primary); font-weight: 600; }
 .rk-card > .btn-link { align-self: flex-start; }
+
+/* Inbox: one compact card per chat, shop + item link + the new messages */
+.rk-inbox { gap: var(--s-xs); }
+.rk-inbox-head { display: flex; align-items: baseline; gap: var(--s-xs); min-width: 0; }
+.rk-inbox-shop { flex: none; font-size: 17px; }
+.rk-inbox-badge { flex: none; padding: 0 8px; border-radius: var(--r-pill); background: var(--c-danger); color: var(--c-on-dark); font-size: 12px; font-weight: 600; line-height: 20px; }
+.rk-inbox-link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.rk-inbox-msgs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-xxs); }
+.rk-inbox-msg { padding: 6px 10px; border-left: 3px solid var(--c-hairline); }
+.rk-inbox-msg--new { border-left-color: var(--c-danger); background: var(--c-danger-bg); }
+.rk-inbox-msg--me { border-left-color: var(--c-ink-muted-48); background: var(--c-canvas-parchment); }
+.rk-inbox-msg--pending { border-left-style: dashed; }
+.rk-inbox-who { font-size: 12px; color: var(--c-ink-muted-80); }
+.rk-inbox-text { margin: 0; font-size: 16px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rk-inbox-reply { display: flex; flex-wrap: wrap; gap: var(--s-xs); align-items: flex-start; }
+.rk-inbox-reply textarea { flex: 1 1 260px; min-height: 40px; }
+.rk-inbox-reply .text-danger { flex-basis: 100%; }

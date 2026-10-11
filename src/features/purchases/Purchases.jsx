@@ -81,6 +81,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 
   return (
     <section aria-label="Nhập hàng" className="page">
+      <PurchaseAlerts store={store} onShow={() => setFilter(f => ({ ...f, period: 'all', product: 'none' }))} />
       {splitting && <SplitForm key={splitting.id} row={splitting} store={store} api={api} onClose={() => setSplitting(null)} />}
       {formOpen && (
         <form onSubmit={e => { e.preventDefault(); save(false); }} noValidate aria-labelledby="pur-form-h" className="card card--lg">
@@ -181,6 +182,30 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 }
 
 // Memoized so typing in the form above does not re-render every row (2,000+ rows with "Tất cả kỳ")
+// Rows the Rakuma sync wrote without a product (name and price to check, combined orders to split), and paid Rakuma
+// orders it could not write (no price or date, month not open), shown above the table so nothing is missed.
+function PurchaseAlerts({ store, onShow }) {
+  const unnamed = store.purchases.filter(r => r.noProduct).length;
+  const stuck = store.rakuma.filter(o => !o.purchaseId && !o.dismissed && !o.status.startsWith('支払い')).length;
+  if (!unnamed && !stuck) return null;
+  return (
+    <div role="alert" className="alert alert--tight">
+      {unnamed > 0 && (
+        <p className="text-danger">
+          <strong>{unnamed} dòng chưa có tên</strong> (thường là đơn gộp hoặc tên không đọc được): bấm Sửa để chọn tên và kiểm giá, đơn gộp bấm Tách.{' '}
+          <button type="button" className="btn-link btn-link--tight" onClick={onShow}>Xem {unnamed} dòng</button>
+        </p>
+      )}
+      {stuck > 0 && (
+        <p className="text-danger">
+          <strong>{stuck} đơn Rakuma đã thanh toán chưa vào được Nhập hàng</strong> (thiếu giá hoặc ngày, hoặc tháng chưa mở).{' '}
+          <a href="#rakuma">Mở tab Rakuma</a>
+        </p>
+      )}
+    </div>
+  );
+}
+
 const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdit, onSplit, onRemove }) {
   return (
     <div role="region" aria-label="Bảng nhập hàng" tabIndex={0} className="table-wrap">
@@ -202,7 +227,7 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
         </thead>
         <tbody>
           {rows.map(r => (
-            <tr key={r.id}>
+            <tr key={r.id} className={r.noProduct ? 'row-warn' : undefined}>
               <td className="r dim nw">{allPeriods ? `${r.periodLabel} · ${r.stt}` : r.stt}</td>
               <td className="nw dim">{r.date ? fmtDate(r.date).slice(0, 5) : '—'}</td>
               <td>

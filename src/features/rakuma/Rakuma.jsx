@@ -78,7 +78,7 @@ export default function Rakuma() {
     <section aria-label="Rakuma" className="page">
       <p className="caption">
         {lastSync ? <>Lần đồng bộ gần nhất: <strong>{lastSync}</strong> (giờ Nhật).</> : 'Chưa đồng bộ lần nào.'}
-        {' '}Nhắn Claude “sync Rakuma” để cập nhật đơn mua, mã vận đơn, tin nhắn và gửi các câu trả lời đang chờ.
+        {' '}Bấm “Đồng bộ lên Sổ kho” trên extension Rakuma để cập nhật đơn mua, mã vận đơn và tin nhắn.
       </p>
 
       <div role="search" aria-label="Lọc đơn Rakuma" className="row-wrap">
@@ -108,7 +108,7 @@ export default function Rakuma() {
       <div className="stack-md">
         <h2 className="h-tile">Tin nhắn <span className="muted">· {chats.length}</span></h2>
         {chats.length === 0 && <p className="caption">Không có tin nhắn mới hay câu trả lời đang chờ gửi.</p>}
-        {chats.map(o => <OrderCard key={o.id} order={o} />)}
+        {chats.map(o => <ChatCard key={o.id} order={o} />)}
       </div>
 
       <div className="stack-md">
@@ -252,6 +252,73 @@ function IssuePanel({ order }) {
         )}
       </div>
     </div>
+  );
+}
+
+// Inbox card for the "Tin nhắn" list: shop, item link and the new messages only, so many chats read fast. Older
+// messages open on demand; rating, problems and the purchase stay on the full card (filters, other sections).
+function ChatCard({ order }) {
+  const { api } = useApp();
+  const [all, setAll] = useState(false);
+  const [body, setBody] = useState('');
+  const [error, setError] = useState('');
+  const seller = order.seller || 'Người bán';
+  const msgs = order.messages;
+  const firstNew = msgs.findIndex(m => m.new);
+  // the unread messages plus the one before them for context; the last 3 when nothing is unread
+  const start = all ? 0 : Math.max(0, firstNew >= 0 ? firstNew - 1 : msgs.length - 3);
+  const pending = order.replies.filter(r => r.status === 'PENDING');
+  const id = `rk-${order.id}-reply`;
+  const send = async () => {
+    const r = await api.replyRakuma(order.id, body);
+    if (r.ok) { setBody(''); setError(''); } else setError(r.errors?.body || r.error);
+  };
+
+  return (
+    <article className="card rk-inbox" aria-label={`Đơn Rakuma ${order.orderNo}`}>
+      <header className="rk-inbox-head">
+        <strong className="rk-inbox-shop">{seller}</strong>
+        {order.newMessages > 0 && <span className="rk-inbox-badge">{order.newMessages} mới</span>}
+        <a className="rk-inbox-link" href={order.link} target="_blank" rel="noopener noreferrer" title={order.title}>{order.title || 'Mở trang món'} ↗</a>
+      </header>
+      <section aria-label={`Tin nhắn với ${seller}`}>
+        {start > 0 && <button type="button" className="btn-link btn-link--tight" onClick={() => setAll(true)}>Xem {start} tin cũ hơn</button>}
+        <ol className="rk-inbox-msgs">
+          {msgs.slice(start).map((m, i) => {
+            const me = m.from === 'buyer';
+            return (
+              <Fragment key={m.id}>
+                {start + i === firstNew && <li className="rk-chat-divider"><span>Tin mới</span></li>}
+                <li className={'rk-inbox-msg' + (me ? ' rk-inbox-msg--me' : '') + (m.new ? ' rk-inbox-msg--new' : '')}>
+                  <span className="rk-inbox-who">{me ? 'Bạn' : 'Shop'} · {m.at}</span>
+                  <p className="rk-inbox-text">{m.body}</p>
+                </li>
+              </Fragment>
+            );
+          })}
+          {pending.map(r => (
+            <li key={'r' + r.id} className="rk-inbox-msg rk-inbox-msg--me rk-inbox-msg--pending">
+              <span className="rk-inbox-who">
+                Bạn · {r.bodyJa ? 'đã dịch, gửi bằng extension' : 'chờ dịch (/rk-dich)'} ·{' '}
+                <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => api.deleteRakumaReply(r.id)}>Hủy</button>
+              </span>
+              <p className="rk-inbox-text">{r.bodyVi}</p>
+              {r.bodyJa && <p className="rk-inbox-text" lang="ja">{r.bodyJa}</p>}
+            </li>
+          ))}
+        </ol>
+      </section>
+      {order.chatOpen ? (
+        <div className="rk-inbox-reply">
+          <label htmlFor={id} className="sr-only">Trả lời người bán (viết tiếng Việt)</label>
+          <textarea {...invalidProps(id, error)} className="input rk-textarea" rows={1} value={body} placeholder="Trả lời bằng tiếng Việt…"
+            onChange={e => { setBody(e.target.value); setError(''); }} />
+          <button type="button" className="btn-primary btn-sm" disabled={!body.trim()} onClick={send}>Gửi trả lời</button>
+          {order.newMessages > 0 && <button type="button" className="btn-secondary btn-sm" onClick={() => api.handleRakuma(order.id)}>Đã đọc</button>}
+          {error && <p id={id + '-err'} className="text-danger">{error}</p>}
+        </div>
+      ) : <p className="caption">Chat đã đóng trên Rakuma.</p>}
+    </article>
   );
 }
 
