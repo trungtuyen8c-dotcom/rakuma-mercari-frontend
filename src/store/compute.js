@@ -27,6 +27,8 @@ function periodStats(s, pid, purchases, sales) {
   return { period: p, inventory, totals, negatives: inventory.filter(i => i.current < 0), matches };
 }
 
+import { computeAlerts } from './alerts';
+
 export function computeStore(s) {
   // Up to two periods can be open (an old month finishing while the next has started). New rows default to the newest.
   const opens = s.periods.filter(p => p.status === 'OPEN').sort((a, b) => a.start.localeCompare(b.start));
@@ -86,10 +88,13 @@ export function computeStore(s) {
   const statsFor = pid => cache[pid] || (cache[pid] = periodStats(s, pid, purchases, sales));
   const cur = statsFor(open.id);
   const products = s.products.map((p, i) => ({ ...p, stt: i + 1, txCount: tx[p.id] || 0 }));
-  return {
+  const store = {
     openPeriod: open, openPeriods: opens, prevPeriod: closed[closed.length - 1] || null, nextLabel: nextLabel(latest.label), periods: s.periods,
     products, activeProducts: products.filter(p => p.active), purchases, purchaseIndex, sales, unitCost,
     inventory: cur.inventory, negatives: cur.negatives, totals: cur.totals, statsFor,
     settings: s.settings, user: s.user, apiKeys: s.apiKeys, rakuma: s.rakuma || [],
   };
+  // Time-based warnings (payment due, slow seller) are counted at each load; every write reloads the data
+  store.alerts = computeAlerts(store);
+  return store;
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../../store/app-store';
 import { yen, qtyText, periodStatusText } from '../../utils/format';
-import { computeAlerts } from '../../store/alerts';
 import './dashboard.css';
 
 export default function Dashboard() {
@@ -123,7 +122,7 @@ export default function Dashboard() {
 
 // Everything waiting on the owner, most urgent first; each line goes to the screen that clears it.
 function Today({ store }) {
-  const a = computeAlerts(store);
+  const a = store.alerts;
   const items = [
     [a.payDue.length, 'đơn sắp hết hạn thanh toán (dưới 24 giờ)', '#rakuma', true],
     [a.toReceive.length, 'đơn đã giao tới, chưa bấm nhận hàng trên Rakuma', '#rakuma', true],

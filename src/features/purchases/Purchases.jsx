@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useApp } from '../../store/app-store';
 import { useFocusOn } from '../../hooks/use-focus-on';
 import { yen, fmtDate, siteLabel, periodStatusText } from '../../utils/format';
@@ -7,7 +7,6 @@ import Warnings from '../../components/Warnings';
 import PeriodField, { targetPeriod } from '../../components/PeriodField';
 import SplitForm from './SplitForm';
 import Modal from '../../components/Modal';
-import { computeAlerts } from '../../store/alerts';
 
 const ALL = { period: '', source: 'all', product: 'all', status: 'all', q: '' };
 const blank = keep => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '' });
@@ -59,22 +58,24 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
     api.deletePurchase(r.id);
   }, [api]);
 
-  const allPeriods = filter.period === 'all';
-  const period = store.periods.find(p => p.id === (filter.period || store.openPeriod.id)) || store.openPeriod;
+  // the table follows the filters a beat later, so the search box stays smooth with thousands of rows
+  const shown = useDeferredValue(filter);
+  const allPeriods = shown.period === 'all';
+  const period = store.periods.find(p => p.id === (shown.period || store.openPeriod.id)) || store.openPeriod;
   // Filtering stays out of the form's keystrokes: rows only change with the data or the filters
   const rows = useMemo(() => {
-    const q = filter.q.trim().toLowerCase();
+    const q = shown.q.trim().toLowerCase();
     return store.purchases.filter(r => (allPeriods || r.periodId === period.id)
       && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
-      && (filter.source === 'all' || r.source === filter.source)
-      && (filter.product === 'all' || (filter.product === 'none' ? r.noProduct : r.productId === filter.product))
-      && (filter.status === 'all'
-        || (filter.status === 'unchecked' && !r.checked)
-        || (filter.status === 'unreviewed' && !r.reviewed)
-        || (filter.status === 'done' && r.checked && r.reviewed)
-        || (filter.status === 'dup' && (r.dupLink || r.dupTracking))
-        || (filter.status === 'oddprice' && r.oddPrice)));
-  }, [store.purchases, filter, allPeriods, period.id]);
+      && (shown.source === 'all' || r.source === shown.source)
+      && (shown.product === 'all' || (shown.product === 'none' ? r.noProduct : r.productId === shown.product))
+      && (shown.status === 'all'
+        || (shown.status === 'unchecked' && !r.checked)
+        || (shown.status === 'unreviewed' && !r.reviewed)
+        || (shown.status === 'done' && r.checked && r.reviewed)
+        || (shown.status === 'dup' && (r.dupLink || r.dupTracking))
+        || (shown.status === 'oddprice' && r.oddPrice)));
+  }, [store.purchases, shown, allPeriods, period.id]);
   const setF = k => e => setFilter(f => ({ ...f, [k]: e.target.value }));
   const filtered = Object.keys(ALL).some(k => filter[k] !== ALL[k]);
 
@@ -155,7 +156,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
       <div className="stack-md">
         <div role="group" aria-label="Bộ lọc" className="row-wrap">
           <input type="search" aria-label="Tìm dòng nhập" className="pill pill--search" placeholder="Tìm sản phẩm, link, vận đơn, ghi chú…" value={filter.q} onChange={setF('q')} />
-          <select aria-label="Kỳ" className="pill" value={allPeriods ? 'all' : period.id} onChange={setF('period')}>
+          <select aria-label="Kỳ" className="pill" value={filter.period || store.openPeriod.id} onChange={setF('period')}>
             <option value="all">Tất cả kỳ</option>
             {store.periods.map(p => <option key={p.id} value={p.id}>{`Kỳ ${p.label} · ${periodStatusText(p)}`}</option>)}
           </select>
@@ -202,7 +203,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 // Rows the Rakuma sync wrote without a product (name and price to check, combined orders to split), and paid Rakuma
 // orders it could not write (no price or date, month not open), shown above the table so nothing is missed.
 function PurchaseAlerts({ store, onShow }) {
-  const a = computeAlerts(store);
+  const a = store.alerts;
   const unnamed = a.unnamed.length, odd = a.oddPrice.length, stuck = a.stuck.length, toReceive = a.toReceive.length;
   if (!unnamed && !odd && !stuck && !toReceive) return null;
   return (
@@ -222,13 +223,13 @@ function PurchaseAlerts({ store, onShow }) {
       {toReceive > 0 && (
         <p className="text-danger">
           <strong>{toReceive} đơn đã giao tới, chưa bấm nhận hàng và đánh giá trên Rakuma</strong>.{' '}
-          <a href="#rakuma">Xem danh sách</a>
+          <a href="#rakuma" className="link-inline">Xem danh sách</a>
         </p>
       )}
       {stuck > 0 && (
         <p className="text-danger">
           <strong>{stuck} đơn Rakuma đã thanh toán chưa vào được Nhập hàng</strong> (thiếu giá hoặc ngày, hoặc tháng chưa mở).{' '}
-          <a href="#rakuma">Mở tab Rakuma</a>
+          <a href="#rakuma" className="link-inline">Mở tab Rakuma</a>
         </p>
       )}
     </div>

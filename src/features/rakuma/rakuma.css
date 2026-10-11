@@ -75,3 +75,4 @@
 .rk-receive { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--c-divider-soft); }
 .rk-receive li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-xxs) var(--s-sm); padding: var(--s-xs) 0; border-bottom: 1px solid var(--c-divider-soft); }
 .rk-receive-title { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-more { align-self: flex-start; }
