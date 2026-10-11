@@ -22,3 +22,9 @@
 
 .dash-edit { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: var(--s-sm); align-items: end; }
 .dash-edit > p, .dash-edit > .row-wrap { grid-column: 1 / -1; }
+.dash-today { background: var(--c-canvas); border-bottom: 1px solid var(--c-hairline); }
+.dash-today-inner { padding-top: var(--s-lg); padding-bottom: var(--s-lg); display: flex; flex-direction: column; gap: var(--s-sm); }
+.dash-today-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-xs); }
+.dash-today-list a { display: inline-block; padding: 6px 14px; border-radius: var(--r-pill); border: 1px solid var(--c-hairline); color: var(--c-ink); text-decoration: none; font-size: 15px; }
+.dash-today-list a:hover { border-color: var(--c-primary); color: var(--c-primary); }
+.dash-today-list a.dash-today-urgent { border-color: var(--c-danger); background: var(--c-danger-bg); color: var(--c-danger); }

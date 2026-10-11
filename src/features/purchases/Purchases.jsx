@@ -6,7 +6,10 @@ import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField, { targetPeriod } from '../../components/PeriodField';
 import SplitForm from './SplitForm';
+import Modal from '../../components/Modal';
+import { computeAlerts } from '../../store/alerts';
 
+const ALL = { period: '', source: 'all', product: 'all', status: 'all', q: '' };
 const blank = keep => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '' });
 
 export default function Purchases({ composerOpen, composerSeq, closeComposer }) {
@@ -16,7 +19,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   const [splitting, setSplitting] = useState(null); // the combined-order row being split into products
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
-  const [filter, setFilter] = useState({ period: '', source: 'all', product: 'all', status: 'all', q: '' });
+  const [filter, setFilter] = useState(ALL);
   const firstRef = useFocusOn(composerOpen, composerSeq);
 
   const set = (k, v) => {
@@ -28,7 +31,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   const save = async force => {
     const res = editing ? await api.updatePurchase(editing.id, form, force) : await api.addPurchase(form, force);
     if (res.ok) {
-      if (editing) { setEditing(null); setForm(blank()); setErrors({}); setWarnings([]); return; }
+      if (editing) { closeEdit(); return; }
       setForm(f => blank(f));
       setErrors({});
       setWarnings([]);
@@ -38,25 +41,23 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
       setWarnings(res.warnings || []);
     }
   };
-  const cancel = () => { setForm(blank()); setEditing(null); setErrors({}); setWarnings([]); closeComposer(); };
+  const cancel = () => { setForm(blank()); setErrors({}); setWarnings([]); closeComposer(); };
+  const closeEdit = () => { setEditing(null); setForm(blank()); setErrors({}); setWarnings([]); };
   // Any row is editable, closed months too; the totals of later months are recomputed from the rows
   const startEdit = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     setForm({ periodId: r.periodId, productId: r.noProduct ? '' : r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
       discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note });
     setEditing(r); setSplitting(null); setErrors({}); setWarnings([]);
-    window.scrollTo(0, 0);
   }, []);
   const startSplit = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Tách sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     setSplitting(r); setEditing(null);
-    window.scrollTo(0, 0);
   }, []);
   const remove = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Xóa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     api.deletePurchase(r.id);
   }, [api]);
-  const formOpen = composerOpen || !!editing;
 
   const allPeriods = filter.period === 'all';
   const period = store.periods.find(p => p.id === (filter.period || store.openPeriod.id)) || store.openPeriod;
@@ -71,19 +72,17 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
         || (filter.status === 'unchecked' && !r.checked)
         || (filter.status === 'unreviewed' && !r.reviewed)
         || (filter.status === 'done' && r.checked && r.reviewed)
-        || (filter.status === 'dup' && (r.dupLink || r.dupTracking))));
+        || (filter.status === 'dup' && (r.dupLink || r.dupTracking))
+        || (filter.status === 'oddprice' && r.oddPrice)));
   }, [store.purchases, filter, allPeriods, period.id]);
   const setF = k => e => setFilter(f => ({ ...f, [k]: e.target.value }));
+  const filtered = Object.keys(ALL).some(k => filter[k] !== ALL[k]);
 
   // Preview total per BR-03
   const price = Number(form.price), qty = Number(form.qty), disc = form.discount === '' ? 0 : Number(form.discount);
   const valid = form.price !== '' && form.qty !== '' && price > 0 && qty >= 1 && disc >= 0 && disc <= price;
 
-  return (
-    <section aria-label="Nhập hàng" className="page">
-      <PurchaseAlerts store={store} onShow={() => setFilter(f => ({ ...f, period: 'all', product: 'none' }))} />
-      {splitting && <SplitForm key={splitting.id} row={splitting} store={store} api={api} onClose={() => setSplitting(null)} />}
-      {formOpen && (
+  const formEl = (
         <form onSubmit={e => { e.preventDefault(); save(false); }} noValidate aria-labelledby="pur-form-h" className="card card--lg">
           <div className="form-head">
             <h2 id="pur-form-h" className="h-tile">{editing ? `Sửa dòng ${editing.stt} · kỳ ${editing.periodLabel}` : 'Thêm dòng nhập'}</h2>
@@ -135,12 +134,23 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
           <div className="form-foot">
             <p aria-live="polite" className="form-total">Tổng tiền: <strong>{valid ? yen((price - disc) * qty) : '—'}</strong></p>
             <div className="row-wrap">
-              <button type="button" className="btn-secondary" onClick={cancel}>Đóng</button>
+              <button type="button" className="btn-secondary" onClick={editing ? closeEdit : cancel}>Đóng</button>
               <button type="submit" className="btn-primary" disabled={(!form.productId && !editing?.noProduct) || form.price === '' || form.qty === ''}>{editing ? 'Lưu thay đổi' : 'Lưu dòng nhập'}</button>
             </div>
           </div>
         </form>
+  );
+
+  return (
+    <section aria-label="Nhập hàng" className="page">
+      <PurchaseAlerts store={store} onShow={f2 => setFilter({ ...ALL, period: 'all', ...f2 })} />
+      {splitting && (
+        <Modal label="Tách đơn gộp" onClose={() => setSplitting(null)}>
+          <SplitForm key={splitting.id} row={splitting} store={store} api={api} onClose={() => setSplitting(null)} />
+        </Modal>
       )}
+      {editing && <Modal label={`Sửa dòng ${editing.stt}`} onClose={closeEdit}>{formEl}</Modal>}
+      {composerOpen && !editing && formEl}
 
       <div className="stack-md">
         <div role="group" aria-label="Bộ lọc" className="row-wrap">
@@ -165,7 +175,9 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <option value="unreviewed">Chưa đánh giá</option>
             <option value="done">Hoàn tất</option>
             <option value="dup">Có ô trùng</option>
+            <option value="oddprice">Giá lệch nhiều</option>
           </select>
+          {filtered && <button type="button" className="btn-link btn-link--tight" onClick={() => setFilter(ALL)}>Bỏ lọc, xem tất cả</button>}
         </div>
         <div className="row-between row-between--loose">
           <p className="caption"><strong>{rows.length} dòng</strong> · Tổng tiền {yen(rows.reduce((a, r) => a + r.total, 0))}</p>
@@ -175,7 +187,12 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
           <p className="note">{`Kỳ ${period.label} đã chốt ngày ${fmtDate(period.closedAt)}. Dữ liệu chỉ xem, không thể sửa.`}</p>
         )}
         <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} onEdit={startEdit} onSplit={startSplit} onRemove={remove} />
-        {rows.length === 0 && <p className="caption">Không có dòng nào khớp bộ lọc.</p>}
+        {rows.length === 0 && (
+          <p className="caption filter-active">
+            {filtered ? 'Không còn dòng nào khớp bộ lọc.' : 'Chưa có dòng nhập nào.'}
+            {filtered && <button type="button" className="btn-link btn-link--tight" onClick={() => setFilter(ALL)}>Xem tất cả dòng</button>}
+          </p>
+        )}
       </div>
     </section>
   );
@@ -185,15 +202,27 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 // Rows the Rakuma sync wrote without a product (name and price to check, combined orders to split), and paid Rakuma
 // orders it could not write (no price or date, month not open), shown above the table so nothing is missed.
 function PurchaseAlerts({ store, onShow }) {
-  const unnamed = store.purchases.filter(r => r.noProduct).length;
-  const stuck = store.rakuma.filter(o => !o.purchaseId && !o.dismissed && !o.status.startsWith('支払い')).length;
-  if (!unnamed && !stuck) return null;
+  const a = computeAlerts(store);
+  const unnamed = a.unnamed.length, odd = a.oddPrice.length, stuck = a.stuck.length, toReceive = a.toReceive.length;
+  if (!unnamed && !odd && !stuck && !toReceive) return null;
   return (
-    <div role="alert" className="alert alert--tight">
+    <div role="region" aria-label="Cảnh báo nhập hàng" className="alert alert--tight">
       {unnamed > 0 && (
         <p className="text-danger">
           <strong>{unnamed} dòng chưa có tên</strong> (thường là đơn gộp hoặc tên không đọc được): bấm Sửa để chọn tên và kiểm giá, đơn gộp bấm Tách.{' '}
-          <button type="button" className="btn-link btn-link--tight" onClick={onShow}>Xem {unnamed} dòng</button>
+          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'none', status: 'all' })}>Xem {unnamed} dòng</button>
+        </p>
+      )}
+      {odd > 0 && (
+        <p className="text-danger">
+          <strong>{odd} dòng giá nhập lệch nhiều</strong> so với giá thường của sản phẩm đó (đơn gộp chưa tách hoặc gõ nhầm?).{' '}
+          <button type="button" className="btn-link btn-link--tight" onClick={() => onShow({ product: 'all', status: 'oddprice' })}>Xem {odd} dòng</button>
+        </p>
+      )}
+      {toReceive > 0 && (
+        <p className="text-danger">
+          <strong>{toReceive} đơn đã giao tới, chưa bấm nhận hàng và đánh giá trên Rakuma</strong>.{' '}
+          <a href="#rakuma">Xem danh sách</a>
         </p>
       )}
       {stuck > 0 && (
@@ -227,7 +256,7 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
         </thead>
         <tbody>
           {rows.map(r => (
-            <tr key={r.id} className={r.noProduct ? 'row-warn' : undefined}>
+            <tr key={r.id} className={r.noProduct || r.oddPrice ? 'row-warn' : undefined}>
               <td className="r dim nw">{allPeriods ? `${r.periodLabel} · ${r.stt}` : r.stt}</td>
               <td className="nw dim">{r.date ? fmtDate(r.date).slice(0, 5) : '—'}</td>
               <td>
@@ -238,6 +267,7 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, onEdi
               <td className="r nw">
                 {yen(r.price)} × {r.qty}
                 {r.discount > 0 && <span className="cell-sub">−{yen(r.discount)}/cái</span>}
+                {r.oddPrice && <span className="cell-sub b neg">giá lệch nhiều</span>}
               </td>
               <td className="r nw b">{yen(r.total)}</td>
               <td className={'nw' + (r.dupLink ? ' cell-dup' : '')}>

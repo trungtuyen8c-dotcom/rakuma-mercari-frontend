@@ -55,6 +55,20 @@ export function computeStore(s) {
       locked: perById[r.periodId].status === 'CLOSED', periodLabel: perById[r.periodId].label,
     };
   });
+  // Typical cost per item of each product (median of net unit prices), to spot a row far off it (a lump price not
+  // split, a typo) and sales below cost. Needs 3 rows of the product.
+  const units = {};
+  purchases.forEach(r => { if (!r.noProduct) (units[r.productId] = units[r.productId] || []).push(r.price - r.discount); });
+  const unitCost = {};
+  Object.entries(units).forEach(([pid, us]) => {
+    if (us.length < 3) return;
+    const v = [...us].sort((a, b) => a - b), m = v.length >> 1;
+    unitCost[pid] = v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2);
+  });
+  purchases.forEach(r => {
+    const c = unitCost[r.productId];
+    r.oddPrice = !!c && Math.abs(r.price - r.discount - c) > c * 0.3;
+  });
   // Lookups for the Rakuma screen, which checks every order against the purchase rows
   const purchaseIndex = { byId: {}, byLink: {}, byTracking: {} };
   purchases.forEach(r => {
@@ -74,7 +88,7 @@ export function computeStore(s) {
   const products = s.products.map((p, i) => ({ ...p, stt: i + 1, txCount: tx[p.id] || 0 }));
   return {
     openPeriod: open, openPeriods: opens, prevPeriod: closed[closed.length - 1] || null, nextLabel: nextLabel(latest.label), periods: s.periods,
-    products, activeProducts: products.filter(p => p.active), purchases, purchaseIndex, sales,
+    products, activeProducts: products.filter(p => p.active), purchases, purchaseIndex, sales, unitCost,
     inventory: cur.inventory, negatives: cur.negatives, totals: cur.totals, statsFor,
     settings: s.settings, user: s.user, apiKeys: s.apiKeys, rakuma: s.rakuma || [],
   };

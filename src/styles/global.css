@@ -242,3 +242,10 @@ select.pill { cursor: pointer; }
   .split-line select { grid-column: 1 / -1; }
 }
 .table tr.row-warn { background: var(--c-danger-bg); }
+
+/* Modal dialog (edit and split in Nhập hàng): the page under it does not move */
+.modal { width: min(760px, calc(100% - 32px)); max-height: calc(100dvh - 48px); padding: 0; border: 0; border-radius: var(--r-lg); background: var(--c-canvas); color: var(--c-ink); overflow: auto; }
+.modal::backdrop { background: rgba(0, 0, 0, 0.4); }
+.modal > form { border: 0; box-shadow: none; }
+.filter-active { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-xs); }
+.modal .form-foot { position: sticky; bottom: 0; margin: 0 calc(-1 * var(--s-lg)) calc(-1 * var(--s-lg)); padding: var(--s-sm) var(--s-lg); background: var(--c-canvas); border-top: 1px solid var(--c-hairline); }

@@ -5,7 +5,8 @@ import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField from '../../components/PeriodField';
 import './rakuma.css';
-import { guessProduct, guessQty, orderGaps } from './guess';
+import { guessProduct, guessQty, orderGaps, awaitingReceipt, hoursToPay, PAY_SOON_HOURS, slowShipping, transactionUrl } from './guess';
+import { computeAlerts } from '../../store/alerts';
 
 export const RATINGS = [['', 'Chưa đánh giá'], ['GOOD', 'Tốt'], ['NORMAL', 'Bình thường'], ['BAD', 'Không tốt']];
 
@@ -32,6 +33,9 @@ const FILTERS = [
   ['issue', 'Có vấn đề'],
   ['missing', 'Mất khỏi Rakuma'],
   ['unpaid', 'Chưa thanh toán'],
+  ['paydue', 'Sắp hết hạn thanh toán'],
+  ['receive', 'Đã giao, chưa nhận hàng'],
+  ['slowship', 'Shop chậm gửi hàng'],
   ['notracking', 'Đã gửi, chưa có mã vận đơn'],
   ['noinfo', 'Thiếu tên hoặc giá'],
   ['queue', 'Chờ duyệt'],
@@ -39,7 +43,7 @@ const FILTERS = [
   ['closed', 'Chat đã đóng'],
 ];
 
-const matchFilter = (o, f, index) => {
+const matchFilter = (o, f, index, lastSync) => {
   const g = progress(o, index);
   switch (f) {
     case 'unreceived': return !!o.purchaseId && !g.received;
@@ -47,6 +51,9 @@ const matchFilter = (o, f, index) => {
     case 'issue': return !!o.issueNote;
     case 'missing': return missing(o);
     case 'unpaid': return unpaid(o);
+    case 'paydue': { const h = hoursToPay(o); return h !== null && h < PAY_SOON_HOURS; }
+    case 'receive': return awaitingReceipt(o, lastSync);
+    case 'slowship': return slowShipping(o, lastSync);
     case 'notracking': return orderGaps(o).noTracking;
     case 'noinfo': { const gap = orderGaps(o); return gap.noTitle || gap.noPrice; }
     case 'queue': return queued(o);
@@ -67,12 +74,13 @@ export default function Rakuma() {
   const q = query.trim().toLowerCase();
   const filtering = filter !== 'all' || q !== '';
   const orders = store.rakuma;
-  const found = filtering ? orders.filter(o => matchFilter(o, filter, store.purchaseIndex) && matchText(o, q)) : [];
+  const alerts = computeAlerts(store);
+  const { lastSync } = alerts;
+  const found = filtering ? orders.filter(o => matchFilter(o, filter, store.purchaseIndex, lastSync) && matchText(o, q)) : [];
   const issues = orders.filter(problem);
   const chats = orders.filter(o => !problem(o) && (o.newMessages > 0 || pendingReplies(o) > 0));
   const queue = orders.filter(o => !problem(o) && !chats.includes(o) && queued(o));
   const others = orders.filter(o => !issues.includes(o) && !chats.includes(o) && !queue.includes(o));
-  const lastSync = orders.reduce((a, o) => (o.syncedAt > a ? o.syncedAt : a), '');
 
   return (
     <section aria-label="Rakuma" className="page">
@@ -97,6 +105,8 @@ export default function Rakuma() {
       )}
 
       {!filtering && <>
+
+      <TodoSections alerts={alerts} />
 
       {issues.length > 0 && (
         <div className="stack-md">
@@ -253,6 +263,54 @@ function IssuePanel({ order }) {
       </div>
     </div>
   );
+}
+
+// A short to-do list of orders: one line each (shop, item, detail) with the action that clears it.
+function ActionList({ title, note, label, orders, detail, action }) {
+  return (
+    <div className="stack-md">
+      <h2 className="h-tile rk-h-issue">{title} <span className="rk-count rk-count--danger">{orders.length}</span></h2>
+      {note && <p className="caption">{note}</p>}
+      <ul className="rk-receive" aria-label={label}>
+        {orders.map(o => (
+          <li key={o.id}>
+            <strong>{o.seller || 'Người bán ?'}</strong>
+            <span className="rk-receive-title">{o.title || o.orderNo}</span>
+            <span className="caption">{detail(o)}</span>
+            {action(o)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const ASK_SHIPPING = 'Shop ơi, cho mình hỏi khi nào shop gửi hàng được ạ? Cảm ơn shop.';
+const leftText = h => (h < 0 ? `quá hạn ${Math.ceil(-h)} giờ` : h < 1 ? `còn ${Math.max(1, Math.round(h * 60))} phút` : `còn ${Math.floor(h)} giờ`);
+
+function TodoSections({ alerts }) {
+  const { api } = useApp();
+  const open = o => <a href={transactionUrl(o.link)} target="_blank" rel="noopener noreferrer">{'Mở giao dịch ↗'}</a>;
+  return <>
+    {alerts.payDue.length > 0 && (
+      <ActionList title="Sắp hết hạn thanh toán" label="Đơn sắp hết hạn thanh toán" orders={alerts.payDue}
+        note="Quá hạn thì đơn bị huỷ và có thể bị đánh giá xấu."
+        detail={o => `${o.price ? yen(o.price) : ''} · ${leftText(hoursToPay(o))}`} action={open} />
+    )}
+    {alerts.toReceive.length > 0 && (
+      <ActionList title="Đã giao tới, chưa bấm nhận hàng" label="Đơn đã giao, chưa nhận hàng" orders={alerts.toReceive}
+        note="Kiểm hàng xong thì bấm 受取評価 (nhận hàng và đánh giá) trên Rakuma. Đồng bộ lần sau đơn tự biến khỏi danh sách."
+        detail={o => o.status.replace(/^商品の受取\s*/, '')} action={open} />
+    )}
+    {alerts.slowShip.length > 0 && (
+      <ActionList title="Shop chậm gửi hàng" label="Đơn shop chưa gửi sau 3 ngày" orders={alerts.slowShip}
+        note="Đã thanh toán từ 3 ngày trước mà shop chưa gửi. “Hỏi shop” soạn sẵn câu hỏi, dịch bằng /rk-dich rồi gửi bằng extension."
+        detail={o => `Thanh toán ${fmtDate(o.date)}`}
+        action={o => o.replies.some(r => r.status === 'PENDING')
+          ? <span className="caption">Đã soạn câu hỏi</span>
+          : <button type="button" className="btn-link btn-link--tight" onClick={() => api.replyRakuma(o.id, ASK_SHIPPING)}>Hỏi shop</button>} />
+    )}
+  </>;
 }
 
 // Inbox card for the "Tin nhắn" list: shop, item link and the new messages only, so many chats read fast. Older

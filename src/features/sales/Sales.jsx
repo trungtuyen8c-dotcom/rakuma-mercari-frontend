@@ -63,6 +63,10 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
   const qty = Number(form.qty), price = Number(form.price), ship = form.ship === '' ? 0 : Number(form.ship);
   const valid = form.qty !== '' && form.price !== '' && qty >= 1 && price >= 0 && ship >= 0;
   const short = inv && valid && inv.current - qty < 0;
+  // Selling below the product's typical cost per item (after the shipping the shop pays); a 0¥ opened-stock row is not a sale
+  const cost = store.unitCost[form.productId];
+  const net = valid && price > 0 ? Math.floor((qty * price - ship) / qty) : null;
+  const loss = cost && net !== null && net < cost;
 
   return (
     <section aria-label="Bán hàng" className="page">
@@ -90,7 +94,9 @@ export default function Sales({ composerOpen, composerSeq, closeComposer }) {
             <Field id="sale-qty" label="Số lượng bán *" error={errors.qty}>
               <input {...invalidProps('sale-qty', errors.qty)} type="number" inputMode="numeric" min="1" step="1" className="input" value={form.qty} onChange={on('qty')} />
             </Field>
-            <Field id="sale-price" label="Đơn giá mỗi cái (¥) *" error={errors.price} hint="Nhập 0 nếu là hàng bóc (chỉ trừ tồn kho).">
+            <Field id="sale-price" label="Đơn giá mỗi cái (¥) *" error={errors.price}
+              hint={loss ? `Bán lỗ: còn ${yen(net)}/cái sau ship, giá nhập thường ${yen(cost)}/cái.` : 'Nhập 0 nếu là hàng bóc (chỉ trừ tồn kho).'}
+              hintColor={loss ? 'var(--c-danger)' : undefined}>
               <input {...invalidProps('sale-price', errors.price)} aria-describedby="sale-price-hint sale-price-err" type="number" inputMode="numeric" min="0" step="1" className="input" value={form.price} onChange={on('price')} />
             </Field>
             <Field id="sale-ship" label="Phí ship shop chịu (¥)" error={errors.ship}>
