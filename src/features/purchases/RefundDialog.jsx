@@ -10,10 +10,10 @@ const today = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)
 // keeps both the charge and the refund, as the card statement shows them.
 export default function RefundDialog({ row, api, onClose }) {
   const [note, setNote] = useState(row.refundNote);
-  const [f, setF] = useState({ date: today(), amount: String(row.total), note: row.refundNote, removeRow: true });
+  const [f, setF] = useState({ date: today(), amount: String(row.total - row.points), note: row.refundNote, removeRow: true });
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
-  const full = Number(f.amount) === row.total;
+  const full = Number(f.amount) === row.total - row.points; // the points go back as points, not to the card
   const set = k => e => { const v = k === 'removeRow' ? e.target.checked : e.target.value; setF(x => ({ ...x, [k]: v })); setErrors({}); setWarnings([]); };
 
   const saveNote = async v => { const r = await api.setRefundNote(row.id, v); if (r.ok) onClose(); else setErrors(r.errors || { note: r.error }); };
@@ -27,7 +27,7 @@ export default function RefundDialog({ row, api, onClose }) {
     <div className="card card--lg">
       <div className="form-head">
         <h2 className="h-tile">{`Hoàn tiền · dòng ${row.stt} · kỳ ${row.periodLabel}`}</h2>
-        <p className="caption">{row.productName} · {yen(row.total)} · thẻ {row.cardName} · trừ ngày {fmtDate(row.chargeDate)}</p>
+        <p className="caption">{row.productName} · {yen(row.total)}{row.points > 0 ? ` (thẻ ${yen(row.total - row.points)}, point ${row.points.toLocaleString('vi-VN')})` : ''} · thẻ {row.cardName} · trừ ngày {fmtDate(row.chargeDate)}</p>
       </div>
 
       <section aria-labelledby="rf-wait-h" className="stack-md">
@@ -49,7 +49,7 @@ export default function RefundDialog({ row, api, onClose }) {
             <input {...invalidProps('rf-date', errors.date)} type="date" className="input" value={f.date} onChange={set('date')} />
           </Field>
           <Field id="rf-amount" label="Số tiền hoàn (¥)" error={errors.amount}>
-            <input {...invalidProps('rf-amount', errors.amount)} type="number" inputMode="numeric" min="1" max={row.total} className="input" value={f.amount} onChange={set('amount')} />
+            <input {...invalidProps('rf-amount', errors.amount)} type="number" inputMode="numeric" min="1" max={row.total - row.points} className="input" value={f.amount} onChange={set('amount')} />
           </Field>
           <Field id="rf-note" label="Ghi chú hoàn tiền" full>
             <input id="rf-note" type="text" className="input" value={f.note} onChange={set('note')} />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../store/app-store';
-import { yen, fmtDate } from '../../utils/format';
+import { yen, money, fmtDate } from '../../utils/format';
 import './cards.css';
 
 const pad = n => String(n).padStart(2, '0');
@@ -47,7 +47,7 @@ export default function CardLedger() {
     const out = new Map();
     (rows || []).forEach(r => {
       const start = bucket(r.date, q.group), k = start + '|' + r.wallet;
-      const g = out.get(k) || { key: k, start, wallet: r.wallet, count: 0, amount: 0, charged: 0, refunded: 0, rows: [] };
+      const g = out.get(k) || { key: k, start, wallet: r.wallet, currency: r.currency, count: 0, amount: 0, charged: 0, refunded: 0, rows: [] };
       g.count++; g.amount += r.amount; g.rows.push(r);
       if (r.amount < 0) g.charged -= r.amount; else g.refunded += r.amount;
       out.set(k, g);
@@ -56,13 +56,13 @@ export default function CardLedger() {
   }, [rows, q.group]);
   const perCard = useMemo(() => {
     const m = {};
-    (rows || []).forEach(r => { m[r.wallet] = (m[r.wallet] || 0) + r.amount; });
+    (rows || []).forEach(r => { const x = m[r.wallet] || (m[r.wallet] = { amount: 0, currency: r.currency }); x.amount += r.amount; });
     return Object.entries(m).sort();
   }, [rows]);
   const waiting = store.purchases.filter(r => r.refundNote && r.cardId !== '0');
   const cardByName = Object.fromEntries(store.cards.map(c => [c.name, c]));
   const checked = Object.fromEntries(store.cardReconciliations.map(x => [x.cardId + '|' + x.month, x]));
-  const noCard = store.purchases.filter(r => r.cardId === '0' && r.date && r.date >= q.from && r.date <= q.to).length;
+  const noCard = store.purchases.filter(r => r.cardId === '0' && r.total > r.points && r.date && r.date >= q.from && r.date <= q.to).length;
 
   const download = () => {
     const esc = v => `"${String(v).replace(/"/g, '""')}"`;
@@ -78,7 +78,7 @@ export default function CardLedger() {
   return (
     <section aria-label="Sổ thẻ" className="page">
       <p className="caption">
-        Tiền đã trừ từng thẻ từ các dòng nhập có ghi thẻ, tính theo ngày đặt. Đem tổng ngày, tuần hoặc tháng so với sao kê thẻ.
+        Tiền đã trừ từng thẻ từ các dòng nhập có ghi thẻ, tính theo ngày đặt; ví point ghi số point đã tiêu. Đem tổng ngày, tuần hoặc tháng so với sao kê thẻ.
         Thẻ dùng chung với hệ thống order và yahoo: số dư thật = số dư đầu kỳ (bên order) + tiền trừ của cả 3 dự án.
       </p>
       <div role="group" aria-label="Bộ lọc sổ thẻ" className="row-wrap">
@@ -105,10 +105,10 @@ export default function CardLedger() {
 
       {waiting.length > 0 && (
         <div className="note stack-md" style={{ gap: 'var(--s-xs)' }}>
-          <p className="b" style={{ margin: 0 }}>Đang chờ hoàn tiền về thẻ: {waiting.length} đơn · {yen(waiting.reduce((n, r) => n + r.total, 0))}</p>
+          <p className="b" style={{ margin: 0 }}>Đang chờ hoàn tiền về thẻ: {waiting.length} đơn · {yen(waiting.reduce((n, r) => n + r.total - r.points, 0))}</p>
           <ul className="cl-wait">
             {waiting.map(r => (
-              <li key={r.id}><strong>{r.cardName}</strong> · {yen(r.total)} · {r.productName} (kỳ {r.periodLabel} dòng {r.stt}) · {r.refundNote}</li>
+              <li key={r.id}><strong>{r.cardName}</strong> · {yen(r.total - r.points)} · {r.productName} (kỳ {r.periodLabel} dòng {r.stt}) · {r.refundNote}</li>
             ))}
           </ul>
           <p className="caption" style={{ margin: 0 }}>Tiền về rồi thì mở <a href="#purchases" className="link-inline">Nhập hàng</a>, bấm “Hoàn tiền” ở dòng đó.</p>
@@ -117,7 +117,7 @@ export default function CardLedger() {
 
       {perCard.length > 0 && (
         <dl className="cl-totals" aria-label="Tổng trong khoảng">
-          {perCard.map(([w, a]) => <div key={w}><dt>{w}</dt><dd>{yen(-a)}</dd></div>)}
+          {perCard.map(([w, x]) => <div key={w}><dt>{w}</dt><dd>{money(-x.amount, x.currency)}</dd></div>)}
         </dl>
       )}
 
@@ -160,14 +160,14 @@ function GroupRows({ g, group, open, onToggle, card, check, api }) {
       <td className="nw b">{label(g.start, group)}</td>
       <td>{g.wallet}</td>
       <td className="r">{g.count}</td>
-      <td className="r nw">{yen(g.charged)}</td>
-      <td className="r nw">{g.refunded ? yen(g.refunded) : '—'}</td>
-      <td className="r nw b">{yen(-g.amount)}</td>
+      <td className="r nw">{money(g.charged, g.currency)}</td>
+      <td className="r nw">{g.refunded ? money(g.refunded, g.currency) : '—'}</td>
+      <td className="r nw b">{money(-g.amount, g.currency)}</td>
       {group === 'month' && (
         <td className="cl-check">
           {check && check.amount === g.amount && <span className="cl-ok">Đã đối soát {check.at.slice(0, 10)}</span>}
           {check && check.amount !== g.amount && (
-            <span className="cl-bad">Đổi sau đối soát: {yen(-check.amount)} → {yen(-g.amount)}</span>
+            <span className="cl-bad">Đổi sau đối soát: {money(-check.amount, g.currency)} → {money(-g.amount, g.currency)}</span>
           )}
           {card && (!check || check.amount !== g.amount) && (
             <button type="button" className="btn-link btn-link--tight" onClick={() => api.reconcile(card.id, month)}>{check ? 'Đối soát lại' : 'Đánh dấu đã khớp sao kê'}</button>
@@ -182,9 +182,9 @@ function GroupRows({ g, group, open, onToggle, card, check, api }) {
     {open && g.rows.map(r => (
       <tr key={r.id} className="cl-detail">
         <td className="nw dim">{fmtDate(r.date)}</td>
-        <td colSpan={2} className="cl-note">{r.category === 'Hoàn tiền' ? <strong>Hoàn tiền · </strong> : null}{r.note}</td>
-        <td className="r nw">{r.amount < 0 ? yen(-r.amount) : ''}</td>
-        <td className="r nw">{r.amount > 0 ? yen(r.amount) : ''}</td>
+        <td colSpan={2} className="cl-note">{r.category !== 'Mua hàng' ? <strong>{r.category} · </strong> : null}{r.note}</td>
+        <td className="r nw">{r.amount < 0 ? money(-r.amount, r.currency) : ''}</td>
+        <td className="r nw">{r.amount > 0 ? money(r.amount, r.currency) : ''}</td>
         <td />
         {group === 'month' && <td />}
         <td className="act nw">
