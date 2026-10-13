@@ -1,7 +1,7 @@
 import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useApp } from '../../store/app-store';
 import { useFocusOn } from '../../hooks/use-focus-on';
-import { yen, fmtDate, siteLabel, periodStatusText } from '../../utils/format';
+import { yen, money, fmtDate, siteLabel, periodStatusText } from '../../utils/format';
 import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField, { targetPeriod } from '../../components/PeriodField';
@@ -11,7 +11,7 @@ import Modal from '../../components/Modal';
 
 const ALL = { period: '', source: 'all', product: 'all', card: 'all', status: 'all', q: '' };
 // A new row keeps the period, source, date and card of the previous one (several rows of one order in a row)
-const blank = (keep, card = '') => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '', cardId: keep ? keep.cardId : card });
+const blank = (keep, card = '') => ({ periodId: keep ? keep.periodId : '', productId: '', source: keep ? keep.source : 'REGULAR', date: keep ? keep.date : '', price: '', qty: '1', discount: '', tracking: '', merged: false, link: '', note: '', cardId: keep ? keep.cardId : card, points: '', pointCardId: keep ? keep.pointCardId : '' });
 
 export default function Purchases({ composerOpen, composerSeq, closeComposer }) {
   const { store, api } = useApp();
@@ -32,7 +32,8 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   };
   const on = k => e => set(k, k === 'merged' ? e.target.checked : e.target.value);
   const save = async force => {
-    const res = editing ? await api.updatePurchase(editing.id, form, force) : await api.addPurchase(form, force);
+    const d = { ...form, points: form.points === '' ? '0' : form.points }; // an emptied field removes the points
+    const res = editing ? await api.updatePurchase(editing.id, d, force) : await api.addPurchase(d, force);
     if (res.ok) {
       if (editing) { closeEdit(); return; }
       setForm(f => blank(f));
@@ -50,7 +51,8 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   const startEdit = useCallback(r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Sửa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
     setForm({ periodId: r.periodId, productId: r.noProduct ? '' : r.productId, source: r.source, date: r.date, price: String(r.price), qty: String(r.qty),
-      discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note, cardId: r.cardId === '0' ? '' : r.cardId });
+      discount: r.discount ? String(r.discount) : '', tracking: r.tracking, merged: r.merged, link: r.link, note: r.note, cardId: r.cardId === '0' ? '' : r.cardId,
+      points: r.points ? String(r.points) : '', pointCardId: r.pointCardId === '0' ? '' : r.pointCardId });
     setEditing(r); setSplitting(null); setErrors({}); setWarnings([]);
   }, []);
   const startSplit = useCallback(r => {
@@ -60,7 +62,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
   const startRefund = useCallback(r => { setRefunding(r); setEditing(null); setSplitting(null); }, []);
   const remove = useCallback(async r => {
     if (r.locked && !window.confirm(`Dòng này thuộc kỳ ${r.periodLabel} đã chốt. Xóa sẽ làm thay đổi số của các kỳ sau. Tiếp tục?`)) return;
-    if (r.cardId !== '0' && !window.confirm(`Dòng này đã trừ ${yen(r.total)} vào thẻ ${r.cardName}. Xoá dòng thì khoản trừ biến khỏi sổ thẻ. Nếu tiền được hoàn về thẻ, bấm "Hoàn tiền" thay vì xoá. Vẫn xoá?`)) return;
+    if (r.cardId !== '0' && r.total > r.points && !window.confirm(`Dòng này đã trừ ${yen(r.total - r.points)} vào thẻ ${r.cardName}. Xoá dòng thì khoản trừ biến khỏi sổ thẻ. Nếu tiền được hoàn về thẻ, bấm "Hoàn tiền" thay vì xoá. Vẫn xoá?`)) return;
     const res = await api.deletePurchase(r.id);
     if (res.warnings?.length && window.confirm(res.warnings.join('\n') + '\n\nVẫn xoá?')) api.deletePurchase(r.id, true);
   }, [api]);
@@ -77,7 +79,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
       && (!q || [r.productName, r.link, r.tracking, r.note].some(v => (v || '').toLowerCase().includes(q)))
       && (shown.source === 'all' || r.source === shown.source)
       && (shown.product === 'all' || (shown.product === 'none' ? r.noProduct : r.productId === shown.product))
-      && (shown.card === 'all' || r.cardId === (shown.card === 'none' ? '0' : shown.card))
+      && (shown.card === 'all' || (shown.card === 'none' ? r.cardId === '0' && r.total > r.points : r.cardId === shown.card))
       && (shown.status === 'all'
         || (shown.status === 'unchecked' && !r.checked)
         || (shown.status === 'unreviewed' && !r.reviewed)
@@ -128,9 +130,22 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <Field id="pur-card" label="Thẻ thanh toán" error={errors.cardId}>
               <select {...invalidProps('pur-card', errors.cardId)} className="input" value={form.cardId} onChange={on('cardId')}>
                 <option value="">Không ghi thẻ</option>
-                {store.cards.filter(c => c.active || c.id === form.cardId).map(c => <option key={c.id} value={c.id}>{c.name}{c.active ? '' : ' (đã ẩn)'}</option>)}
+                {store.payCards.filter(c => c.active || c.id === form.cardId).map(c => <option key={c.id} value={c.id}>{c.name}{c.active ? '' : ' (đã ẩn)'}</option>)}
               </select>
             </Field>
+            {(store.pointWallets.length > 0 || form.points) && <>
+              <Field id="pur-points" label="Trả bằng point" hint="Phần còn lại trừ vào thẻ. Point là vốn, tổng tiền nhập giữ nguyên." error={errors.points}>
+                <input {...invalidProps('pur-points', errors.points)} aria-describedby="pur-points-hint pur-points-err" type="number" inputMode="numeric" min="0" step="1" className="input" value={form.points} onChange={on('points')} />
+              </Field>
+              {(store.pointWallets.filter(c => c.active).length > 1 || errors.pointCardId) && (
+                <Field id="pur-point-card" label="Ví point" error={errors.pointCardId}>
+                  <select {...invalidProps('pur-point-card', errors.pointCardId)} className="input" value={form.pointCardId} onChange={on('pointCardId')}>
+                    <option value="">Chọn ví point</option>
+                    {store.pointWallets.filter(c => c.active || c.id === form.pointCardId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </Field>
+              )}
+            </>}
             <Field id="pur-tracking" label="Mã vận đơn" error={errors.tracking}>
               <input {...invalidProps('pur-tracking', errors.tracking)} type="text" inputMode="numeric" autoComplete="off" placeholder="622955047890" className="input" value={form.tracking} onChange={on('tracking')} />
             </Field>
@@ -192,11 +207,11 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
             <option value="none">Chưa có tên</option>
             {store.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          {store.cards.length > 0 && (
+          {store.payCards.length > 0 && (
             <select aria-label="Thẻ" className="pill" value={filter.card} onChange={setF('card')}>
               <option value="all">Mọi thẻ</option>
               <option value="none">Chưa ghi thẻ</option>
-              {store.cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {store.payCards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
           <select aria-label="Trạng thái" className="pill" value={filter.status} onChange={setF('status')}>
@@ -217,7 +232,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
         {!allPeriods && period.status === 'CLOSED' && (
           <p className="note">{`Kỳ ${period.label} đã chốt ngày ${fmtDate(period.closedAt)}. Dữ liệu chỉ xem, không thể sửa.`}</p>
         )}
-        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} cards={store.cards} onEdit={startEdit} onSplit={startSplit} onRefund={startRefund} onRemove={remove} />
+        <PurchaseTable rows={rows} allPeriods={allPeriods} api={api} cards={store.payCards} onEdit={startEdit} onSplit={startSplit} onRefund={startRefund} onRemove={remove} />
         {rows.length === 0 && (
           <p className="caption filter-active">
             {filtered ? 'Không còn dòng nào khớp bộ lọc.' : 'Chưa có dòng nhập nào.'}
@@ -235,7 +250,7 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 function PurchaseAlerts({ store, onShow }) {
   const a = store.alerts;
   const unnamed = a.unnamed.length, odd = a.oddPrice.length, stuck = a.stuck.length, toReceive = a.toReceive.length, refund = a.waitingRefund.length;
-  const noCard = a.noCard.length, noCards = store.cards.length === 0;
+  const noCard = a.noCard.length, noCards = store.payCards.length === 0;
   if (!unnamed && !odd && !stuck && !toReceive && !refund && !noCard && !noCards) return null;
   return (
     <div role="region" aria-label="Cảnh báo nhập hàng" className="alert alert--tight">
@@ -292,14 +307,15 @@ function CardCell({ r, cards, api }) {
     const res = await api.setPurchaseCard(r.id, v);
     if (res.warnings?.length && window.confirm(res.warnings.join('\n') + '\n\nVẫn đổi thẻ?')) api.setPurchaseCard(r.id, v, true);
   };
-  const missing = r.cardId === '0';
-  return (
+  const none = r.cardId === '0', missing = none && r.total > r.points; // a row paid all in points needs no card
+  return <>
     <select aria-label={`Thẻ thanh toán dòng ${r.stt} (${r.productName})`} aria-invalid={missing ? 'true' : 'false'}
-      className={'pur-card' + (missing ? ' pur-card--missing' : '')} value={missing ? '' : r.cardId} onChange={change}>
-      <option value="">Chưa chọn thẻ</option>
+      className={'pur-card' + (missing ? ' pur-card--missing' : '')} value={none ? '' : r.cardId} onChange={change}>
+      <option value="">{missing ? 'Chưa chọn thẻ' : 'Không trừ thẻ'}</option>
       {cards.filter(c => c.active || c.id === r.cardId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
     </select>
-  );
+    {r.points > 0 && <span className="cell-sub">{r.total > r.points ? `thẻ ${yen(r.total - r.points)} + ` : ''}{money(r.points, 'PT')}</span>}
+  </>;
 }
 
 const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, cards, onEdit, onSplit, onRefund, onRemove }) {
@@ -358,7 +374,7 @@ const PurchaseTable = memo(function PurchaseTable({ rows, allPeriods, api, cards
               </td>
               <td className="act nw">
                 <button type="button" className="btn-link btn-link--tight" onClick={() => onEdit(r)} aria-label={`Sửa dòng ${r.stt} (${r.productName})`}>Sửa</button>
-                {r.cardId !== '0' && <button type="button" className="btn-link btn-link--tight" onClick={() => onRefund(r)} aria-label={`Hoàn tiền dòng ${r.stt} (${r.productName})`}>Hoàn tiền</button>}
+                {r.cardId !== '0' && r.total > r.points && <button type="button" className="btn-link btn-link--tight" onClick={() => onRefund(r)} aria-label={`Hoàn tiền dòng ${r.stt} (${r.productName})`}>Hoàn tiền</button>}
                 {r.link && <button type="button" className="btn-link btn-link--tight" onClick={() => onSplit(r)} aria-label={`Tách đơn gộp dòng ${r.stt} (${r.productName})`}>Tách</button>}
                 <button type="button" className="btn-link btn-link--tight btn-link--danger" onClick={() => onRemove(r)} aria-label={`Xóa dòng ${r.stt} (${r.productName})`}>Xóa</button>
               </td>

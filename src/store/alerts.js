@@ -18,7 +18,7 @@ export function computeAlerts(store) {
     unnamed: store.purchases.filter(r => r.noProduct),
     waitingRefund: store.purchases.filter(r => r.refundNote),
     // Every purchase is paid; once cards exist, a row of an open month without one is missing from the card ledger
-    noCard: store.cards.length ? store.purchases.filter(r => r.cardId === '0' && store.openPeriods.some(p => p.id === r.periodId)) : [],
+    noCard: store.payCards.length ? store.purchases.filter(r => r.cardId === '0' && r.total > r.points && store.openPeriods.some(p => p.id === r.periodId)) : [],
     oddPrice: store.purchases.filter(r => r.oddPrice),
     negatives: store.negatives,
   };

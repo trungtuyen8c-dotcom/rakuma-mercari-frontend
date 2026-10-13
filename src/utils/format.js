@@ -3,6 +3,13 @@ export const yen = n => {
   return (v < 0 ? '−' : '') + Math.abs(v).toLocaleString('vi-VN') + '¥';
 };
 
+// Amount of a card (¥) or point wallet (PT, 1 point = ¥1 face value)
+export const money = (n, currency) => {
+  if (currency !== 'PT') return yen(n);
+  const v = Math.round(n || 0);
+  return (v < 0 ? '−' : '') + Math.abs(v).toLocaleString('vi-VN') + ' pt';
+};
+
 export const qtyText = n => n.toLocaleString('vi-VN');
 
 // yyyy-mm-dd -> dd/mm/yyyy
