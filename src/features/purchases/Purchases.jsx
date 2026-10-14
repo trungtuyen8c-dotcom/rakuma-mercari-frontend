@@ -250,8 +250,9 @@ export default function Purchases({ composerOpen, composerSeq, closeComposer }) 
 function PurchaseAlerts({ store, onShow }) {
   const a = store.alerts;
   const unnamed = a.unnamed.length, odd = a.oddPrice.length, stuck = a.stuck.length, toReceive = a.toReceive.length, refund = a.waitingRefund.length;
+  const skipped = a.skippedShipped.length, unpaidOpen = a.unpaidWaiting.length, unpaidGone = a.unpaidGone.length;
   const noCard = a.noCard.length, noCards = store.payCards.length === 0;
-  if (!unnamed && !odd && !stuck && !toReceive && !refund && !noCard && !noCards) return null;
+  if (!unnamed && !odd && !stuck && !toReceive && !refund && !noCard && !noCards && !skipped && !unpaidOpen && !unpaidGone) return null;
   return (
     <div role="region" aria-label="Cảnh báo nhập hàng" className="alert alert--tight">
       {unnamed > 0 && (
@@ -287,6 +288,23 @@ function PurchaseAlerts({ store, onShow }) {
         <p className="text-danger">
           <strong>{toReceive} đơn đã giao tới, chưa bấm nhận hàng và đánh giá trên Rakuma</strong>.{' '}
           <a href="#rakuma" className="link-inline">Xem danh sách</a>
+        </p>
+      )}
+      {skipped > 0 && (
+        <p className="text-danger">
+          <strong>{skipped} đơn Rakuma đã bỏ qua nhưng có vận đơn hoặc đã giao/nhận</strong>, không có dòng nhập: có thể thiếu tiền nhập.{' '}
+          <a href="#rakuma" className="link-inline">Xem mục “Đã bỏ qua” ở tab Rakuma</a>
+        </p>
+      )}
+      {unpaidOpen > 0 && (
+        <p className="caption">
+          {unpaidOpen} đơn Rakuma chưa thanh toán nên chưa có dòng nhập; thanh toán xong, lần đồng bộ sau tự ghi vào đây.
+        </p>
+      )}
+      {unpaidGone > 0 && (
+        <p className="text-danger">
+          <strong>{unpaidGone} đơn Rakuma chưa thanh toán đã không còn trên Rakuma</strong> (hết hạn hoặc huỷ), chưa có dòng nhập: kiểm tra rồi bấm Bỏ qua kèm lý do.{' '}
+          <a href="#rakuma" className="link-inline">Mở tab Rakuma</a> (lọc “Chưa ghép dòng nhập”)
         </p>
       )}
       {stuck > 0 && (

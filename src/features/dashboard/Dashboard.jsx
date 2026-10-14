@@ -130,6 +130,7 @@ function Today({ store }) {
     [a.unread.length, 'đơn có tin nhắn shop chưa đọc', '#rakuma', false],
     [a.pendingReplies, 'câu trả lời chờ dịch hoặc chờ gửi', '#rakuma', false],
     [a.stuck.length, 'đơn đã thanh toán chưa vào Nhập hàng', '#rakuma', true],
+    [a.skippedShipped.length, 'đơn Rakuma đã bỏ qua nhưng có vận đơn hoặc đã giao', '#rakuma', true],
     [a.unnamed.length, 'dòng nhập chưa có tên', '#purchases', true],
     [a.noCard.length, 'dòng nhập chưa chọn thẻ thanh toán', '#purchases', true],
     [a.waitingRefund.length, 'đơn đang chờ hoàn tiền về thẻ', '#cards', false],

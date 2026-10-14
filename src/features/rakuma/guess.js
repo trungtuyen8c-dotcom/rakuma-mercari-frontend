@@ -36,6 +36,9 @@ export function orderGaps(o) {
   };
 }
 
+// Shipped, delivered or received on Rakuma: such an order should be on a purchase row.
+export const shippedOrDone = o => !!o.tracking || /発送済み|配達|取引完了/.test(o.status || '');
+
 // Latest sync time over all orders ("YYYY-MM-DD HH:MM", Japan time).
 export const lastSyncOf = orders => orders.reduce((a, o) => (o.syncedAt > a ? o.syncedAt : a), '');
 
