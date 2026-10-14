@@ -305,11 +305,9 @@ function ActionList({ title, note, label, orders, detail, action }) {
   );
 }
 
-const ASK_SHIPPING = 'Shop ơi, cho mình hỏi khi nào shop gửi hàng được ạ? Cảm ơn shop.';
 const leftText = h => (h < 0 ? `quá hạn ${Math.ceil(-h)} giờ` : h < 1 ? `còn ${Math.max(1, Math.round(h * 60))} phút` : `còn ${Math.floor(h)} giờ`);
 
 function TodoSections({ alerts }) {
-  const { api } = useApp();
   const open = o => <a href={transactionUrl(o.link)} target="_blank" rel="noopener noreferrer">{'Mở giao dịch ↗'}</a>;
   return <>
     {alerts.payDue.length > 0 && (
@@ -324,11 +322,9 @@ function TodoSections({ alerts }) {
     )}
     {alerts.notShipped.length > 0 && (
       <ActionList title={`Shop chưa gửi hàng${alerts.slowShip.length ? ` · ${alerts.slowShip.length} chậm` : ''}`} label="Đơn shop chưa gửi hàng" orders={alerts.notShipped}
-        note={`Đã thanh toán mà shop chưa báo gửi hàng, chờ lâu nhất ở trên. Từ ${SLOW_SHIP_DAYS} ngày trở lên là chậm. “Hỏi shop” soạn sẵn câu hỏi, dịch bằng /rk-dich rồi gửi bằng extension.`}
+        note={`Đã thanh toán mà shop chưa báo gửi hàng, chờ lâu nhất ở trên. Từ ${SLOW_SHIP_DAYS} ngày trở lên là chậm. Bấm “Mở giao dịch” để xem và nhắn shop ngay trên Rakuma.`}
         detail={o => { const d = shipWaitDays(o); return <>Thanh toán {fmtDate(o.date)} · {d < 1 ? 'hôm nay' : `chờ ${d} ngày`}{d >= SLOW_SHIP_DAYS && <strong className="neg"> · chậm</strong>}</>; }}
-        action={o => o.replies.some(r => r.status === 'PENDING')
-          ? <span className="caption">Đã soạn câu hỏi</span>
-          : <button type="button" className="btn-link btn-link--tight" onClick={() => api.replyRakuma(o.id, ASK_SHIPPING)}>Hỏi shop</button>} />
+        action={open} />
     )}
   </>;
 }
