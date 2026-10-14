@@ -5,7 +5,7 @@ import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField from '../../components/PeriodField';
 import './rakuma.css';
-import { guessProduct, guessQty, orderGaps, awaitingReceipt, hoursToPay, payDueSoon, slowShipping, shipWaitDays, SLOW_SHIP_DAYS, current, transactionUrl } from './guess';
+import { guessProduct, guessQty, orderGaps, awaitingReceipt, hoursToPay, payDueSoon, slowShipping, shipWaitDays, SLOW_SHIP_DAYS, current, shippedOrDone, transactionUrl } from './guess';
 
 export const RATINGS = [['', 'Chưa đánh giá'], ['GOOD', 'Tốt'], ['NORMAL', 'Bình thường'], ['BAD', 'Không tốt']];
 
@@ -39,6 +39,9 @@ const FILTERS = [
   ['notracking', 'Đã gửi, chưa có mã vận đơn'],
   ['noinfo', 'Thiếu tên hoặc giá'],
   ['queue', 'Chờ duyệt'],
+  ['unmatched', 'Chưa ghép dòng nhập'],
+  ['skipped', 'Đã bỏ qua'],
+  ['skippedshipped', 'Đã bỏ qua nhưng có vận đơn / đã giao'],
   ['done', 'Hoàn tất'],
   ['closed', 'Chat đã đóng'],
 ];
@@ -57,6 +60,9 @@ const matchFilter = (o, f, index, lastSync) => {
     case 'notracking': return orderGaps(o).noTracking;
     case 'noinfo': { const gap = orderGaps(o); return gap.noTitle || gap.noPrice; }
     case 'queue': return queued(o);
+    case 'unmatched': return !o.purchaseId && !o.dismissed;
+    case 'skipped': return o.dismissed && !o.purchaseId;
+    case 'skippedshipped': return o.dismissed && !o.purchaseId && shippedOrDone(o);
     case 'done': return g.done;
     case 'closed': return !o.chatOpen;
     default: return true;
@@ -84,7 +90,7 @@ export default function Rakuma() {
   const inChats = new Set(chats);
   const queue = orders.filter(o => !problem(o) && !inChats.has(o) && queued(o) && current(o, lastSync));
   const stale = orders.filter(o => !o.dismissed && !current(o, lastSync) && !inChats.has(o) && !problem(o) && (o.newMessages > 0 || queued(o))).length;
-  const listed = new Set([...issues, ...chats, ...queue]);
+  const listed = new Set([...issues, ...chats, ...queue, ...alerts.skipped]);
   const others = orders.filter(o => !listed.has(o));
 
   return (
@@ -136,10 +142,19 @@ export default function Rakuma() {
 
       <Broadcast orders={orders} />
 
+      <div className="stack-md">
+        <h2 className="h-tile">Đã bỏ qua <span className="muted">· {alerts.skipped.length}</span>
+          {alerts.skippedShipped.length > 0 && <span className="rk-count rk-count--danger" title="Có vận đơn hoặc đã giao/nhận">{alerts.skippedShipped.length} có vận đơn</span>}
+        </h2>
+        <p className="caption">Đơn không đưa vào Nhập hàng, kèm lúc nào, ai bỏ qua và lý do. “Khôi phục” đưa về hàng chờ (hoặc nối luôn vào dòng nhập cùng link); “Tạo dòng nhập hàng” ghi đơn vào Nhập hàng.</p>
+        {alerts.skipped.length === 0 && <p className="caption">Không có đơn nào bị bỏ qua.</p>}
+        <Capped items={alerts.skipped} render={o => <OrderCard key={o.id} order={o} collapsed />} />
+      </div>
+
       {others.length > 0 && (
         <div className="stack-md">
           <button type="button" className="btn-link btn-link--tight" aria-expanded={showOthers} onClick={() => setShowOthers(v => !v)}>
-            {showOthers ? 'Ẩn' : 'Xem'} {others.length} đơn khác (đã nhập hoặc đã bỏ qua)
+            {showOthers ? 'Ẩn' : 'Xem'} {others.length} đơn khác (đã nhập)
           </button>
           {showOthers && <Capped items={others} render={o => <OrderCard key={o.id} order={o} collapsed />} />}
         </div>
@@ -518,6 +533,8 @@ function ApproveForm({ order }) {
   const [form, setForm] = useState(() => initial(order, store.openPeriods, guess));
   const [errors, setErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
+  const [skipping, setSkipping] = useState(false);
+  const [skipReason, setSkipReason] = useState('');
   const id = k => `rk-${order.id}-${k}`;
 
   const set = patch => { setForm(f => ({ ...f, ...patch })); setWarnings([]); setErrors({}); };
@@ -587,13 +604,20 @@ function ApproveForm({ order }) {
         </Field>
       </div>
       <Warnings items={warnings} onForce={() => save(true)} forceLabel="Vẫn lưu dòng này" />
+      {skipping && (
+        <div className="row-wrap" role="group" aria-label="Bỏ qua đơn này">
+          <input type="text" className="input" aria-label="Lý do bỏ qua" placeholder="Lý do (không bắt buộc): đơn huỷ, trùng dòng nhập tay…"
+            value={skipReason} onChange={e => setSkipReason(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+          <button type="button" className="btn-secondary" onClick={() => api.dismissRakuma(order.id, true, skipReason)}>Xác nhận bỏ qua</button>
+        </div>
+      )}
       <div className="form-foot">
         <p aria-live="polite" className="form-total">
           Tổng tiền: <strong>{valid ? yen(total) : '—'}</strong>
           {valid && order.price > 0 && total !== paid && <span className="text-danger"> · khác số đã trả trên Rakuma {yen(paid)}</span>}
         </p>
         <div className="row-wrap">
-          <button type="button" className="btn-secondary" onClick={() => api.dismissRakuma(order.id, true)}>Bỏ qua</button>
+          {!order.dismissed && <button type="button" className="btn-secondary" aria-expanded={skipping} onClick={() => setSkipping(v => !v)}>Bỏ qua</button>}
           <button type="submit" className="btn-primary" disabled={!form.productId || !valid}>Lưu vào Nhập hàng</button>
         </div>
       </div>
@@ -601,12 +625,24 @@ function ApproveForm({ order }) {
   );
 }
 
+const KIND = { manual: 'Bấm Bỏ qua', row_deleted: 'Xoá dòng nhập', refund_removed: 'Hoàn tiền rồi xoá dòng', unknown: 'Không rõ' };
+
+// A skipped order: why it is not in Nhập hàng, and the way back
 function Restore({ order }) {
   const { api } = useApp();
+  const [making, setMaking] = useState(false);
   return (
-    <div className="row-wrap">
-      <p className="caption">Đơn này đã bỏ qua, không đưa vào Nhập hàng.</p>
-      <button type="button" className="btn-link btn-link--tight" onClick={() => api.dismissRakuma(order.id, false)}>Đưa về hàng chờ</button>
+    <div className="stack-md" style={{ gap: 'var(--s-xs)' }}>
+      <p className={'caption' + (shippedOrDone(order) ? ' text-danger' : '')}>
+        <strong>Đã bỏ qua</strong>{order.dismissedAt && <> lúc {order.dismissedAt}</>}{order.dismissedBy && <> bởi {order.dismissedBy}</>}
+        {' · '}{KIND[order.dismissKind] || 'Không rõ'}: {order.dismissReason || '—'}
+        {shippedOrDone(order) && <> · <strong>đơn có vận đơn hoặc đã giao/nhận, có thể thiếu trong Nhập hàng</strong></>}
+      </p>
+      <div className="row-wrap">
+        <button type="button" className="btn-secondary btn-sm" onClick={() => api.dismissRakuma(order.id, false)}>Khôi phục</button>
+        <button type="button" className="btn-primary btn-sm" aria-expanded={making} onClick={() => setMaking(v => !v)}>Tạo dòng nhập hàng</button>
+      </div>
+      {making && <ApproveForm order={order} />}
     </div>
   );
 }

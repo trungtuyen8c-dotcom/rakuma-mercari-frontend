@@ -1,4 +1,4 @@
-import { lastSyncOf, awaitingReceipt, hoursToPay, payDueSoon, awaitingShipment, shipWaitDays, SLOW_SHIP_DAYS } from '../features/rakuma/guess';
+import { current, shippedOrDone, lastSyncOf, awaitingReceipt, hoursToPay, payDueSoon, awaitingShipment, shipWaitDays, SLOW_SHIP_DAYS } from '../features/rakuma/guess';
 
 // Everything the owner should act on, counted once for the dashboard's "Việc hôm nay", the Nhập hàng warning and the
 // Rakuma sections.
@@ -17,6 +17,14 @@ export function computeAlerts(store) {
     unread: orders.filter(o => o.newMessages > 0),
     pendingReplies: orders.reduce((n, o) => n + o.replies.filter(r => r.status === 'PENDING').length, 0),
     stuck: orders.filter(o => !o.purchaseId && !o.dismissed && !o.status.startsWith('支払い')),
+    // Not on any purchase row and not skipped: unpaid ones wait for payment, paid ones could not be written
+    unmatched: orders.filter(o => !o.purchaseId && !o.dismissed),
+    unpaidWaiting: orders.filter(o => !o.purchaseId && !o.dismissed && o.status.startsWith('支払い') && current(o, lastSync)),
+    // Unpaid when last seen and gone from Rakuma since: payment expired or cancelled
+    unpaidGone: orders.filter(o => !o.purchaseId && !o.dismissed && o.status.startsWith('支払い') && !current(o, lastSync)),
+    skipped: orders.filter(o => o.dismissed && !o.purchaseId),
+    // Skipped although the goods were shipped, delivered or received: a purchase may be missing from Nhập hàng
+    skippedShipped: orders.filter(o => o.dismissed && !o.purchaseId && shippedOrDone(o)),
     unnamed: store.purchases.filter(r => r.noProduct),
     waitingRefund: store.purchases.filter(r => r.refundNote),
     // Every purchase is paid; once cards exist, a row of an open month without one is missing from the card ledger
