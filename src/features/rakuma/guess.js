@@ -41,10 +41,14 @@ export const lastSyncOf = orders => orders.reduce((a, o) => (o.syncedAt > a ? o.
 
 const minutes = at => { const t = Date.parse((at || '').replace(' ', 'T')); return Number.isNaN(t) ? 0 : t / 60000; };
 
-// Delivered but the owner has not done 受取評価 (receive + rate) on Rakuma yet: the seller is waiting and usually
-// nags. Only orders read in the latest sync count: once received, an order leaves 取引中 and is no longer refreshed.
+// Read in the latest sync and not dropped by the owner (row deleted or order skipped). An order the latest sync did not
+// read has left the Rakuma lists (done, cancelled, payment expired) or belongs to another Rakuma account, so its status
+// is old news and it raises no alert.
+export const current = (o, lastSync) => !o.dismissed && !!lastSync && minutes(lastSync) - minutes(o.syncedAt) <= 30;
+
+// Delivered but the owner has not done 受取評価 (receive + rate) on Rakuma yet: the seller is waiting and usually nags.
 export const awaitingReceipt = (o, lastSync) =>
-  /配達済み/.test(o.status || '') && (o.status || '').startsWith('商品の受取') && !!lastSync && minutes(lastSync) - minutes(o.syncedAt) <= 30;
+  /配達済み/.test(o.status || '') && (o.status || '').startsWith('商品の受取') && current(o, lastSync);
 
 // The order's transaction page on Rakuma, where 受取評価 is done.
 export const transactionUrl = link => `https://fril.jp/transaction?item_id=${(link || '').split('/').pop()}`;
@@ -62,11 +66,19 @@ export const hoursToPay = (o, now = jstNow()) => {
   return (due - now) / 3600e3;
 };
 export const PAY_SOON_HOURS = 24;
-
-// Paid at least `days` days ago (purchase date, JST) and the seller has not shipped yet; latest sync only.
-export const slowShipping = (o, lastSync, days = 3, now = jstNow()) => {
-  const s = o.status || '';
-  if (!s.startsWith('商品の受取') || /発送済み|配達/.test(s) || !o.date) return false;
-  if (!lastSync || minutes(lastSync) - minutes(o.syncedAt) > 30) return false;
-  return (now - Date.parse(o.date + 'T00:00:00Z')) / 864e5 >= days;
+// Unpaid with under PAY_SOON_HOURS left (or overdue), still on Rakuma, and no purchase row yet (a row means it was paid).
+export const payDueSoon = (o, lastSync) => {
+  const h = hoursToPay(o);
+  return h !== null && h < PAY_SOON_HOURS && !o.purchaseId && current(o, lastSync);
 };
+
+// Paid and the seller has not shipped yet: 商品発送待ち, or the receipt page before any shipping notice.
+export const awaitingShipment = (o, lastSync) => {
+  const s = o.status || '';
+  return !!o.date && current(o, lastSync) && (s.startsWith('商品発送待ち') || s.startsWith('商品の受取') && !/発送済み|配達/.test(s));
+};
+// Whole days since payment (purchase date, JST).
+export const shipWaitDays = (o, now = jstNow()) => Math.floor((now - Date.parse(o.date + 'T00:00:00Z')) / 864e5);
+export const SLOW_SHIP_DAYS = 3;
+// Waiting for the seller to ship for SLOW_SHIP_DAYS days or more.
+export const slowShipping = (o, lastSync, now = jstNow()) => awaitingShipment(o, lastSync) && shipWaitDays(o, now) >= SLOW_SHIP_DAYS;

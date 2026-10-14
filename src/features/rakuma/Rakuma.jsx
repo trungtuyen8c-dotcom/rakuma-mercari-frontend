@@ -5,7 +5,7 @@ import Field, { invalidProps } from '../../components/Field';
 import Warnings from '../../components/Warnings';
 import PeriodField from '../../components/PeriodField';
 import './rakuma.css';
-import { guessProduct, guessQty, orderGaps, awaitingReceipt, hoursToPay, PAY_SOON_HOURS, slowShipping, transactionUrl } from './guess';
+import { guessProduct, guessQty, orderGaps, awaitingReceipt, hoursToPay, payDueSoon, slowShipping, shipWaitDays, SLOW_SHIP_DAYS, current, transactionUrl } from './guess';
 
 export const RATINGS = [['', 'Chưa đánh giá'], ['GOOD', 'Tốt'], ['NORMAL', 'Bình thường'], ['BAD', 'Không tốt']];
 
@@ -15,7 +15,8 @@ const pendingReplies = o => o.replies.filter(r => r.status === 'PENDING').length
 const missing = o => !!o.missingSince;
 const unpaid = o => o.status.startsWith('支払い');
 const problem = o => !!o.issueNote || missing(o);
-export const needsAttention = o => problem(o) || o.newMessages > 0 || queued(o);
+// For the menu badge: orders the latest sync did not read (gone from Rakuma, or another account) do not count
+export const needsAttention = (o, lastSync) => problem(o) || current(o, lastSync) && (o.newMessages > 0 || queued(o));
 
 // Orders arrive from Claude's Rakuma sync (POST /rakuma/sync). The owner reads seller messages, writes replies in
 // Vietnamese (Claude translates and posts them on the next sync), tracks problems, and turns queued orders into purchases.
@@ -50,7 +51,7 @@ const matchFilter = (o, f, index, lastSync) => {
     case 'issue': return !!o.issueNote;
     case 'missing': return missing(o);
     case 'unpaid': return unpaid(o);
-    case 'paydue': { const h = hoursToPay(o); return h !== null && h < PAY_SOON_HOURS; }
+    case 'paydue': return payDueSoon(o, lastSync);
     case 'receive': return awaitingReceipt(o, lastSync);
     case 'slowship': return slowShipping(o, lastSync);
     case 'notracking': return orderGaps(o).noTracking;
@@ -78,9 +79,11 @@ export default function Rakuma() {
   const { lastSync } = alerts;
   const found = filtering ? orders.filter(o => matchFilter(o, filter, store.purchaseIndex, lastSync) && matchText(o, q)) : [];
   const issues = orders.filter(problem);
-  const chats = orders.filter(o => !problem(o) && (o.newMessages > 0 || pendingReplies(o) > 0));
+  // A reply still waiting to be sent keeps its chat listed; otherwise only orders the latest sync read
+  const chats = orders.filter(o => !problem(o) && !o.dismissed && (pendingReplies(o) > 0 || o.newMessages > 0 && current(o, lastSync)));
   const inChats = new Set(chats);
-  const queue = orders.filter(o => !problem(o) && !inChats.has(o) && queued(o));
+  const queue = orders.filter(o => !problem(o) && !inChats.has(o) && queued(o) && current(o, lastSync));
+  const stale = orders.filter(o => !o.dismissed && !current(o, lastSync) && !inChats.has(o) && !problem(o) && (o.newMessages > 0 || queued(o))).length;
   const listed = new Set([...issues, ...chats, ...queue]);
   const others = orders.filter(o => !listed.has(o));
 
@@ -89,6 +92,7 @@ export default function Rakuma() {
       <p className="caption">
         {lastSync ? <>Lần đồng bộ gần nhất: <strong>{lastSync}</strong> (giờ Nhật).</> : 'Chưa đồng bộ lần nào.'}
         {' '}Bấm “Đồng bộ lên Sổ kho” trên extension Rakuma để cập nhật đơn mua, mã vận đơn và tin nhắn.
+        {stale > 0 && <> {stale} đơn không có trong lần đồng bộ này (đã xong, đã huỷ hoặc thuộc tài khoản Rakuma khác) nên không hiện trong các mục dưới; xem bằng bộ lọc.</>}
       </p>
 
       <div role="search" aria-label="Lọc đơn Rakuma" className="row-wrap">
@@ -318,10 +322,10 @@ function TodoSections({ alerts }) {
         note="Kiểm hàng xong thì bấm 受取評価 (nhận hàng và đánh giá) trên Rakuma. Đồng bộ lần sau đơn tự biến khỏi danh sách."
         detail={o => o.status.replace(/^商品の受取\s*/, '')} action={open} />
     )}
-    {alerts.slowShip.length > 0 && (
-      <ActionList title="Shop chậm gửi hàng" label="Đơn shop chưa gửi sau 3 ngày" orders={alerts.slowShip}
-        note="Đã thanh toán từ 3 ngày trước mà shop chưa gửi. “Hỏi shop” soạn sẵn câu hỏi, dịch bằng /rk-dich rồi gửi bằng extension."
-        detail={o => `Thanh toán ${fmtDate(o.date)}`}
+    {alerts.notShipped.length > 0 && (
+      <ActionList title={`Shop chưa gửi hàng${alerts.slowShip.length ? ` · ${alerts.slowShip.length} chậm` : ''}`} label="Đơn shop chưa gửi hàng" orders={alerts.notShipped}
+        note={`Đã thanh toán mà shop chưa báo gửi hàng, chờ lâu nhất ở trên. Từ ${SLOW_SHIP_DAYS} ngày trở lên là chậm. “Hỏi shop” soạn sẵn câu hỏi, dịch bằng /rk-dich rồi gửi bằng extension.`}
+        detail={o => { const d = shipWaitDays(o); return <>Thanh toán {fmtDate(o.date)} · {d < 1 ? 'hôm nay' : `chờ ${d} ngày`}{d >= SLOW_SHIP_DAYS && <strong className="neg"> · chậm</strong>}</>; }}
         action={o => o.replies.some(r => r.status === 'PENDING')
           ? <span className="caption">Đã soạn câu hỏi</span>
           : <button type="button" className="btn-link btn-link--tight" onClick={() => api.replyRakuma(o.id, ASK_SHIPPING)}>Hỏi shop</button>} />
