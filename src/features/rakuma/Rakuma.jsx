@@ -57,7 +57,7 @@ const matchFilter = (o, f, index, lastSync) => {
     case 'paydue': return payDueSoon(o, lastSync);
     case 'receive': return awaitingReceipt(o, lastSync);
     case 'slowship': return slowShipping(o, lastSync);
-    case 'notracking': return orderGaps(o).noTracking;
+    case 'notracking': return orderGaps(o).noTracking && !(o.purchaseId && index.byId[o.purchaseId]?.tracking);
     case 'noinfo': { const gap = orderGaps(o); return gap.noTitle || gap.noPrice; }
     case 'queue': return queued(o);
     case 'unmatched': return !o.purchaseId && !o.dismissed;
@@ -242,7 +242,7 @@ function OrderHead({ order }) {
         <p className="caption">
           {order.seller || 'Người bán ?'} · Đơn {order.orderNo}
           {order.carrier && ` · ${order.carrier}`}
-          {' · '}{order.tracking ? <>Vận đơn <strong>{order.tracking}</strong></> : 'Chưa có mã vận đơn'}
+          {' · '}{order.tracking ? <>Vận đơn <strong>{order.tracking}</strong>{order.trackingFromChat && ' (lấy từ tin nhắn shop)'}</> : 'Chưa có mã vận đơn'}
           {order.purchaseId && ' · Đã nhập'}
           {!order.chatOpen && ' · Chat đã đóng'}
         </p>
@@ -301,6 +301,27 @@ function IssuePanel({ order }) {
 }
 
 // A short to-do list of orders: one line each (shop, item, detail) with the action that clears it.
+// Types the tracking number of a shipped order onto its purchase row; an order without a row opens on Rakuma instead.
+function TrackingInput({ order }) {
+  const { api } = useApp();
+  const [v, setV] = useState('');
+  const [err, setErr] = useState('');
+  if (!order.purchaseId) return <a href={transactionUrl(order.link)} target="_blank" rel="noopener noreferrer">Mở giao dịch ↗</a>;
+  const save = async e => {
+    e.preventDefault();
+    const r = await api.togglePurchase(order.purchaseId, 'tracking', v.trim());
+    if (!r.ok) setErr(r.errors?.tracking || r.error || 'Không lưu được.');
+  };
+  return (
+    <form onSubmit={save} className="row-wrap" aria-label={`Nhập mã vận đơn đơn ${order.orderNo}`}>
+      <input type="text" inputMode="numeric" autoComplete="off" className="input" aria-label={`Mã vận đơn đơn ${order.orderNo}`}
+        aria-invalid={err ? 'true' : 'false'} placeholder="Mã vận đơn" value={v} onChange={e => { setV(e.target.value); setErr(''); }} style={{ width: 160 }} />
+      <button type="submit" className="btn-secondary btn-sm" disabled={!v.trim()}>Lưu</button>
+      {err && <span className="text-danger">{err}</span>}
+    </form>
+  );
+}
+
 function ActionList({ title, note, label, orders, detail, action }) {
   return (
     <div className="stack-md">
@@ -334,6 +355,12 @@ function TodoSections({ alerts }) {
       <ActionList title="Đã giao tới, chưa bấm nhận hàng" label="Đơn đã giao, chưa nhận hàng" orders={alerts.toReceive}
         note="Kiểm hàng xong thì bấm 受取評価 (nhận hàng và đánh giá) trên Rakuma. Đồng bộ lần sau đơn tự biến khỏi danh sách."
         detail={o => o.status.replace(/^商品の受取\s*/, '')} action={open} />
+    )}
+    {alerts.noTracking.length > 0 && (
+      <ActionList title="Đã gửi nhưng chưa có mã vận đơn" label="Đơn đã gửi, chưa có mã vận đơn" orders={alerts.noTracking}
+        note="Shop tự gửi (không dùng らくまパック) và tin nhắn không có mã. Hỏi shop hoặc xem trên Rakuma rồi nhập mã ở đây; mã vào dòng nhập hàng của đơn."
+        detail={o => o.status.replace(/^商品の受取\s*/, '')}
+        action={o => <TrackingInput order={o} />} />
     )}
     {alerts.notShipped.length > 0 && (
       <ActionList title={`Shop chưa gửi hàng${alerts.slowShip.length ? ` · ${alerts.slowShip.length} chậm` : ''}`} label="Đơn shop chưa gửi hàng" orders={alerts.notShipped}

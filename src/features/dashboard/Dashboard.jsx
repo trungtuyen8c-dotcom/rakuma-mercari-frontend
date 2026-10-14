@@ -126,6 +126,7 @@ function Today({ store }) {
   const items = [
     [a.payDue.length, 'đơn sắp hết hạn thanh toán (dưới 24 giờ)', '#rakuma', true],
     [a.toReceive.length, 'đơn đã giao tới, chưa bấm nhận hàng trên Rakuma', '#rakuma', true],
+    [a.noTracking.length, 'đơn đã gửi nhưng chưa có mã vận đơn', '#rakuma', true],
     [a.slowShip.length, 'đơn shop chưa gửi sau 3 ngày', '#rakuma', false],
     [a.unread.length, 'đơn có tin nhắn shop chưa đọc', '#rakuma', false],
     [a.pendingReplies, 'câu trả lời chờ dịch hoặc chờ gửi', '#rakuma', false],
