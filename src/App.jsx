@@ -69,7 +69,7 @@ export default function App() {
   return (
     <>
       <button type="button" className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Bỏ qua tới nội dung chính</button>
-      <AppHeader screen={screen} email={store.user.email} onSignOut={signOut} badges={{ rakuma: store.rakuma.filter(needsAttention).length }} />
+      <AppHeader screen={screen} email={store.user.email} onSignOut={signOut} badges={{ rakuma: store.rakuma.filter(o => needsAttention(o, store.alerts.lastSync)).length }} />
       <div className="subnav" role="region" aria-label="Tiêu đề trang">
         <div className="wrap subnav-bar">
           <div className="subnav-title">
