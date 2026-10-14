@@ -28,7 +28,8 @@ export function guessQty(title) {
 
 // Missing pieces worth a warning on an order card.
 export function orderGaps(o) {
-  const shipped = /発送済み|配達|商品の受取/.test(o.status || '');
+  // 商品の受取 alone is the receipt page before any shipping notice: not shipped yet
+  const shipped = /発送済み|配達/.test(o.status || '');
   return {
     noTitle: !o.title,
     noPrice: !o.price,
@@ -38,6 +39,11 @@ export function orderGaps(o) {
 
 // Shipped, delivered or received on Rakuma: such an order should be on a purchase row.
 export const shippedOrDone = o => !!o.tracking || /発送済み|配達|取引完了/.test(o.status || '');
+
+// Shipped (seller's own carrier, not らくまパック) with no tracking number on the order or its purchase row, even after
+// reading the seller's messages: the owner types it in.
+export const shippedNoTracking = (o, lastSync, purchase) =>
+  /発送済み|配達/.test(o.status || '') && !o.tracking && !purchase?.tracking && current(o, lastSync);
 
 // Latest sync time over all orders ("YYYY-MM-DD HH:MM", Japan time).
 export const lastSyncOf = orders => orders.reduce((a, o) => (o.syncedAt > a ? o.syncedAt : a), '');

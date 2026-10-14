@@ -252,7 +252,7 @@ function PurchaseAlerts({ store, onShow }) {
   const unnamed = a.unnamed.length, odd = a.oddPrice.length, stuck = a.stuck.length, toReceive = a.toReceive.length, refund = a.waitingRefund.length;
   const skipped = a.skippedShipped.length, unpaidOpen = a.unpaidWaiting.length, unpaidGone = a.unpaidGone.length;
   const noCard = a.noCard.length, noCards = store.payCards.length === 0;
-  if (!unnamed && !odd && !stuck && !toReceive && !refund && !noCard && !noCards && !skipped && !unpaidOpen && !unpaidGone) return null;
+  if (!unnamed && !odd && !stuck && !toReceive && !refund && !noCard && !noCards && !skipped && !unpaidOpen && !unpaidGone && !a.noTracking.length) return null;
   return (
     <div role="region" aria-label="Cảnh báo nhập hàng" className="alert alert--tight">
       {unnamed > 0 && (
@@ -288,6 +288,12 @@ function PurchaseAlerts({ store, onShow }) {
         <p className="text-danger">
           <strong>{toReceive} đơn đã giao tới, chưa bấm nhận hàng và đánh giá trên Rakuma</strong>.{' '}
           <a href="#rakuma" className="link-inline">Xem danh sách</a>
+        </p>
+      )}
+      {a.noTracking.length > 0 && (
+        <p className="text-danger">
+          <strong>{a.noTracking.length} đơn Rakuma đã gửi nhưng chưa có mã vận đơn</strong> (shop tự gửi, tin nhắn không có mã): nhập tay.{' '}
+          <a href="#rakuma" className="link-inline">Nhập ở tab Rakuma</a>
         </p>
       )}
       {skipped > 0 && (

@@ -1,4 +1,4 @@
-import { current, shippedOrDone, lastSyncOf, awaitingReceipt, hoursToPay, payDueSoon, awaitingShipment, shipWaitDays, SLOW_SHIP_DAYS } from '../features/rakuma/guess';
+import { current, shippedOrDone, shippedNoTracking, lastSyncOf, awaitingReceipt, hoursToPay, payDueSoon, awaitingShipment, shipWaitDays, SLOW_SHIP_DAYS } from '../features/rakuma/guess';
 
 // Everything the owner should act on, counted once for the dashboard's "Việc hôm nay", the Nhập hàng warning and the
 // Rakuma sections.
@@ -12,6 +12,7 @@ export function computeAlerts(store) {
     lastSync,
     payDue,
     toReceive: orders.filter(o => awaitingReceipt(o, lastSync)),
+    noTracking: orders.filter(o => shippedNoTracking(o, lastSync, o.purchaseId ? store.purchaseIndex.byId[o.purchaseId] : null)),
     notShipped,
     slowShip: notShipped.filter(o => shipWaitDays(o) >= SLOW_SHIP_DAYS),
     unread: orders.filter(o => o.newMessages > 0),
