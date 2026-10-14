@@ -234,7 +234,7 @@ select.pill { cursor: pointer; }
 
 /* Split a combined order: product, qty, price, line total, remove */
 .split-lines { display: grid; gap: var(--s-sm); justify-items: start; }
-.split-line { display: grid; grid-template-columns: minmax(0, 2fr) 80px minmax(0, 1fr) 96px 40px; gap: var(--s-sm); align-items: center; width: 100%; }
+.split-line { display: grid; grid-template-columns: minmax(0, 2fr) 72px minmax(0, 1fr) minmax(0, 0.8fr) 96px 40px; gap: var(--s-sm); align-items: center; width: 100%; }
 .split-total { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .split-err { grid-column: 1 / -1; }
 @media (max-width: 640px) {
