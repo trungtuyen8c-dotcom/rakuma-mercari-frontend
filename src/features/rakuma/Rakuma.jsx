@@ -544,12 +544,13 @@ const inOpen = (date, opens) => !!date && opens.some(p => date >= p.start && dat
 
 // Product from the owner's keywords and quantity from "4BOX"-style titles; the lump price is split per unit only when
 // it divides evenly, otherwise the price is left empty for the owner
+// The owner's choice from the extension preview (planProductId / planQty) wins over the guess from the title
 const initial = (o, opens, guess) => {
-  const qty = guess.qty || 1;
+  const qty = o.planQty || guess.qty || 1;
   const price = !o.price ? '' : qty === 1 ? String(o.price) : o.price % qty === 0 ? String(o.price / qty) : '';
   const discount = !o.discount ? '' : String(qty === 1 ? o.discount : Math.floor(o.discount / qty));
   return {
-    periodId: '', productId: guess.product ? guess.product.product.id : '', source: 'REGULAR', qty: String(qty), price, discount,
+    periodId: '', productId: o.planProductId || (guess.product ? guess.product.product.id : ''), source: 'REGULAR', qty: String(qty), price, discount,
     date: inOpen(o.date, opens) ? o.date : '', note: o.title ? `Rakuma ${o.orderNo} · ${o.title}` : `Rakuma ${o.orderNo}`,
   };
 };
